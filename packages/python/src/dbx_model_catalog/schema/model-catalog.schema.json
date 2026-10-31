@@ -1,0 +1,946 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 11,
+      "description": "Version of the published catalog contract."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "description": "Latest source-fetch timestamp represented by the catalog."
+    },
+    "models": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Databricks serving endpoint or model service identifier used as the catalog key."
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/CatalogModel"
+      },
+      "description": "Models keyed by Databricks serving endpoint or model service identifier."
+    }
+  },
+  "required": [
+    "schema_version",
+    "updated_at",
+    "models"
+  ],
+  "additionalProperties": false,
+  "description": "Published Databricks model catalog with identity, capabilities, availability, pricing, lifecycle, rankings, and benchmarks.",
+  "title": "ModelCatalog",
+  "$defs": {
+    "CatalogModel": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Canonical model name from Databricks documentation."
+        },
+        "description": {
+          "type": "string",
+          "description": "Consolidated description of the model and intended use."
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Alternative names and identifiers; excludes the catalog key."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "chat",
+            "image",
+            "video",
+            "embedding",
+            "reranking",
+            "decision",
+            "transcription",
+            "speech",
+            "realtime",
+            "extraction",
+            "audio"
+          ],
+          "description": "Normalized model type."
+        },
+        "family": {
+          "description": "Model family used to group related versions.",
+          "type": "string"
+        },
+        "publisher": {
+          "description": "Organization that develops or publishes the model.",
+          "type": "string"
+        },
+        "license": {
+          "description": "Model license or upstream license classification.",
+          "type": "string"
+        },
+        "open_weights": {
+          "description": "Whether model weights are publicly available.",
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "preview",
+            "alpha",
+            "beta",
+            "legacy",
+            "deprecated",
+            "retired"
+          ],
+          "description": "Current normalized lifecycle state."
+        },
+        "release_date": {
+          "description": "Model release date.",
+          "type": "string",
+          "format": "date",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+        },
+        "last_updated": {
+          "description": "Latest known model revision or metadata date.",
+          "type": "string",
+          "format": "date",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+        },
+        "knowledge_cutoff": {
+          "description": "Latest date covered by the model's stated training knowledge.",
+          "type": "string",
+          "format": "date",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+        },
+        "retirement": {
+          "description": "Databricks retirement and replacement information.",
+          "type": "object",
+          "properties": {
+            "schedules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "offering": {
+                    "type": "string",
+                    "description": "Serving offering affected by this retirement schedule."
+                  },
+                  "dates": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                      "description": "ISO 8601 calendar date in YYYY-MM-DD format."
+                    },
+                    "description": "Retirement dates documented for the offering."
+                  }
+                },
+                "required": [
+                  "offering",
+                  "dates"
+                ],
+                "additionalProperties": false,
+                "description": "Retirement dates for one serving offering."
+              },
+              "description": "Retirement schedules by serving offering."
+            },
+            "replacement": {
+              "description": "Catalog key of the recommended replacement model when matched.",
+              "type": "string",
+              "minLength": 1
+            },
+            "replacement_name": {
+              "description": "Documented replacement model name when no catalog key is matched.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "schedules"
+          ],
+          "additionalProperties": false
+        },
+        "modalities": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "image",
+                      "audio",
+                      "video",
+                      "application/pdf",
+                      "embedding",
+                      "reranking",
+                      "decision"
+                    ],
+                    "description": "Known model input and output modalities."
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^(text|image|audio|video|application)\\/[A-Za-z0-9.+-]+$",
+                    "description": "Valid media MIME type."
+                  }
+                ],
+                "description": "Model input or output modality."
+              },
+              "description": "Modalities accepted by the model."
+            },
+            "output": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "image",
+                      "audio",
+                      "video",
+                      "application/pdf",
+                      "embedding",
+                      "reranking",
+                      "decision"
+                    ],
+                    "description": "Known model input and output modalities."
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^(text|image|audio|video|application)\\/[A-Za-z0-9.+-]+$",
+                    "description": "Valid media MIME type."
+                  }
+                ],
+                "description": "Model input or output modality."
+              },
+              "description": "Modalities produced by the model."
+            }
+          },
+          "required": [
+            "input",
+            "output"
+          ],
+          "additionalProperties": false,
+          "description": "Model input and output modalities."
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "attachments": {
+              "description": "Whether requests can include image, audio, video, or PDF attachments.",
+              "type": "boolean"
+            },
+            "tools": {
+              "description": "Whether the model supports tool or function calling.",
+              "type": "boolean"
+            },
+            "structured_output": {
+              "description": "Whether the model supports schema-constrained output.",
+              "type": "boolean"
+            },
+            "temperature": {
+              "description": "Whether the model supports temperature sampling.",
+              "type": "boolean"
+            },
+            "interleaved_reasoning": {
+              "description": "Whether reasoning content can be interleaved with the answer.",
+              "type": "boolean"
+            },
+            "web_search": {
+              "type": "boolean",
+              "description": "Whether Databricks documents native web search support."
+            },
+            "reasoning": {
+              "description": "Reasoning support and controls when known.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "supported": {
+                      "type": "boolean",
+                      "const": false,
+                      "description": "The model does not support explicit reasoning controls."
+                    }
+                  },
+                  "required": [
+                    "supported"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "supported": {
+                      "type": "boolean",
+                      "const": true,
+                      "description": "The model supports explicit reasoning controls."
+                    },
+                    "effort": {
+                      "description": "Supported reasoning effort levels.",
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "default"
+                        ],
+                        "description": "Normalized reasoning effort level."
+                      }
+                    },
+                    "default_effort": {
+                      "description": "Default reasoning effort when no level is specified.",
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "minimal",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max",
+                        "default"
+                      ]
+                    },
+                    "toggle": {
+                      "description": "Whether reasoning can be explicitly enabled or disabled.",
+                      "type": "boolean"
+                    },
+                    "budget": {
+                      "description": "Supported reasoning-token budget range.",
+                      "type": "object",
+                      "properties": {
+                        "min": {
+                          "description": "Minimum supported reasoning-token budget.",
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "max": {
+                          "description": "Maximum supported reasoning-token budget.",
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "description": {
+                      "description": "Combined Databricks description of reasoning behavior.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "supported"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "required": [
+            "web_search"
+          ],
+          "additionalProperties": false,
+          "description": "Capabilities used to select the model for a workload."
+        },
+        "limits": {
+          "description": "Documented token limits.",
+          "type": "object",
+          "properties": {
+            "context": {
+              "description": "Maximum context window in tokens.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "input": {
+              "description": "Maximum input length in tokens.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output": {
+              "description": "Maximum generated output length in tokens.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "additionalProperties": false
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "High-level tasks documented for the model."
+        },
+        "use_cases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Example use cases documented for the model."
+        },
+        "availability": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "aws",
+              "azure",
+              "gcp"
+            ],
+            "description": "Cloud provider where Databricks serves the model."
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "preview",
+                  "alpha",
+                  "beta",
+                  "legacy",
+                  "deprecated",
+                  "retired"
+                ],
+                "description": "Lifecycle state for this cloud-provider deployment."
+              },
+              "serving_modes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "pay_per_token",
+                    "priority_pay_per_token",
+                    "provisioned_throughput",
+                    "batch"
+                  ],
+                  "description": "Databricks serving mode available for the model."
+                },
+                "description": "Serving modes documented or priced for this deployment."
+              },
+              "details": {
+                "description": "Additional Databricks availability details.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "serving_modes"
+            ],
+            "additionalProperties": false,
+            "description": "Model availability on one Databricks cloud provider."
+          },
+          "description": "Availability keyed by Databricks cloud provider."
+        },
+        "price": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "aws",
+              "azure",
+              "gcp"
+            ],
+            "description": "Cloud provider where Databricks serves the model."
+          },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": [
+                "DBU",
+                "USD"
+              ],
+              "description": "Currency or Databricks billing unit used by a price."
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "unit": {
+                  "type": "string",
+                  "enum": [
+                    "per_million_tokens",
+                    "per_hour",
+                    "per_hour_per_50_model_units"
+                  ],
+                  "description": "Quantity to which the rates apply."
+                },
+                "rates": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Billing dimension such as input, output, cache_read, or hour."
+                  },
+                  "additionalProperties": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "description": "Rates keyed by billing dimension."
+                }
+              },
+              "required": [
+                "unit",
+                "rates"
+              ],
+              "additionalProperties": false,
+              "description": "Normalized Databricks price in one currency."
+            },
+            "description": "Available DBU and USD prices."
+          },
+          "description": "Average Databricks DBU and USD prices for each cloud provider."
+        },
+        "average_price": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "DBU",
+              "USD"
+            ],
+            "description": "Currency or Databricks billing unit used by a price."
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "per_million_tokens",
+                  "per_hour",
+                  "per_hour_per_50_model_units"
+                ],
+                "description": "Quantity to which the rates apply."
+              },
+              "rates": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Billing dimension such as input, output, cache_read, or hour."
+                },
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "description": "Rates keyed by billing dimension."
+              }
+            },
+            "required": [
+              "unit",
+              "rates"
+            ],
+            "additionalProperties": false,
+            "description": "Normalized Databricks price in one currency."
+          },
+          "description": "Average Databricks DBU and USD price across cloud providers and matched pricing variants."
+        },
+        "notices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "note",
+                      "important",
+                      "warning",
+                      "tip",
+                      "caution",
+                      "info"
+                    ],
+                    "description": "Known Databricks documentation notice kinds."
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                ],
+                "description": "Documentation notice kind."
+              },
+              "title": {
+                "description": "Notice title when it adds information beyond the kind.",
+                "type": "string"
+              },
+              "text": {
+                "type": "string",
+                "description": "Deduplicated notice text."
+              }
+            },
+            "required": [
+              "kind",
+              "text"
+            ],
+            "additionalProperties": false,
+            "description": "Important Databricks documentation notice."
+          },
+          "description": "Deduplicated Databricks documentation notices."
+        },
+        "rankings": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "description": "Leaderboard domain or configuration."
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "Leaderboard category within the domain."
+                  },
+                  "rank": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "One-based leaderboard rank."
+                  },
+                  "published_at": {
+                    "description": "Leaderboard publication date.",
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "variant": {
+                    "description": "Evaluated model variant when it differs from the base model.",
+                    "type": "object",
+                    "properties": {
+                      "reasoning": {
+                        "description": "Whether the evaluated variant used reasoning.",
+                        "type": "boolean"
+                      },
+                      "reasoning_effort": {
+                        "description": "Reasoning effort used by the evaluated variant.",
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "default"
+                        ]
+                      },
+                      "reasoning_mode": {
+                        "description": "Reasoning execution mode used by the evaluated variant.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "thinking"
+                        ]
+                      },
+                      "harness": {
+                        "description": "Agent or evaluation harness used for the result.",
+                        "type": "string"
+                      },
+                      "context": {
+                        "description": "Context-window size used by the evaluated variant.",
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "metric": {
+                    "type": "string",
+                    "const": "rating",
+                    "description": "This ranking uses a preference rating."
+                  },
+                  "rating": {
+                    "type": "number",
+                    "description": "Central rating estimate."
+                  },
+                  "lower": {
+                    "type": "number",
+                    "description": "Lower confidence bound."
+                  },
+                  "upper": {
+                    "type": "number",
+                    "description": "Upper confidence bound."
+                  },
+                  "variance": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Estimated rating variance."
+                  },
+                  "votes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Human preference votes used for the rating."
+                  }
+                },
+                "required": [
+                  "domain",
+                  "category",
+                  "rank",
+                  "metric",
+                  "rating",
+                  "lower",
+                  "upper",
+                  "variance",
+                  "votes"
+                ],
+                "additionalProperties": false,
+                "description": "Competitive ranking based on human preference ratings."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "description": "Leaderboard domain or configuration."
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "Leaderboard category within the domain."
+                  },
+                  "rank": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "One-based leaderboard rank."
+                  },
+                  "published_at": {
+                    "description": "Leaderboard publication date.",
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "variant": {
+                    "description": "Evaluated model variant when it differs from the base model.",
+                    "type": "object",
+                    "properties": {
+                      "reasoning": {
+                        "description": "Whether the evaluated variant used reasoning.",
+                        "type": "boolean"
+                      },
+                      "reasoning_effort": {
+                        "description": "Reasoning effort used by the evaluated variant.",
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "default"
+                        ]
+                      },
+                      "reasoning_mode": {
+                        "description": "Reasoning execution mode used by the evaluated variant.",
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "thinking"
+                        ]
+                      },
+                      "harness": {
+                        "description": "Agent or evaluation harness used for the result.",
+                        "type": "string"
+                      },
+                      "context": {
+                        "description": "Context-window size used by the evaluated variant.",
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "metric": {
+                    "type": "string",
+                    "const": "score",
+                    "description": "This ranking uses an evaluation score."
+                  },
+                  "score": {
+                    "type": "number",
+                    "description": "Central score estimate."
+                  },
+                  "lower": {
+                    "type": "number",
+                    "description": "Lower confidence bound."
+                  },
+                  "upper": {
+                    "type": "number",
+                    "description": "Upper confidence bound."
+                  },
+                  "observations": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Observations used to estimate the score."
+                  },
+                  "sessions": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Evaluation sessions, or null when not reported."
+                  }
+                },
+                "required": [
+                  "domain",
+                  "category",
+                  "rank",
+                  "metric",
+                  "score",
+                  "lower",
+                  "upper",
+                  "observations",
+                  "sessions"
+                ],
+                "additionalProperties": false,
+                "description": "Competitive ranking based on a scored evaluation."
+              }
+            ],
+            "description": "Competitive leaderboard ranking."
+          },
+          "description": "Competitive leaderboard rankings matched to the model."
+        },
+        "benchmarks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Benchmark category or task-suite name."
+              },
+              "rank": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "One-based benchmark rank."
+              },
+              "score": {
+                "type": "number",
+                "description": "Benchmark score."
+              },
+              "task_count": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Tasks represented by the benchmark score."
+              },
+              "published_at": {
+                "description": "Benchmark publication date.",
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "variant": {
+                "description": "Evaluated model variant when it differs from the base model.",
+                "type": "object",
+                "properties": {
+                  "reasoning": {
+                    "description": "Whether the evaluated variant used reasoning.",
+                    "type": "boolean"
+                  },
+                  "reasoning_effort": {
+                    "description": "Reasoning effort used by the evaluated variant.",
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max",
+                      "default"
+                    ]
+                  },
+                  "reasoning_mode": {
+                    "description": "Reasoning execution mode used by the evaluated variant.",
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "thinking"
+                    ]
+                  },
+                  "harness": {
+                    "description": "Agent or evaluation harness used for the result.",
+                    "type": "string"
+                  },
+                  "context": {
+                    "description": "Context-window size used by the evaluated variant.",
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "name",
+              "rank",
+              "score",
+              "task_count"
+            ],
+            "additionalProperties": false,
+            "description": "Task-suite benchmark result."
+          },
+          "description": "Task-suite benchmark results matched to the model."
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "aliases",
+        "type",
+        "status",
+        "modalities",
+        "capabilities",
+        "tasks",
+        "use_cases",
+        "availability",
+        "price",
+        "average_price",
+        "notices",
+        "rankings",
+        "benchmarks"
+      ],
+      "additionalProperties": false,
+      "description": "Published statistics for one Databricks model.",
+      "title": "CatalogModel"
+    }
+  }
+}

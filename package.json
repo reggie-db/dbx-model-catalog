@@ -1,0 +1,22 @@
+{
+  "name": "dbx-model-catalog",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "catalog": {
+    "zod": "4.6.7"
+  },
+  "scripts": {
+    "check": "bun run typecheck && bun test",
+    "schema": "bun run packages/common/src/schema-cli.ts packages/python/src/dbx_model_catalog/schema/model-catalog.schema.json && uv run python packages/python/scripts/generate_models.py",
+    "sync": "bun run schema && bun run packages/sync/src/cli.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "typescript": "6.0.3"
+  }
+}

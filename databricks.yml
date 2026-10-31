@@ -1,5 +1,5 @@
 # Databricks Asset Bundle (DAB) configuration.
-# Bundle name matches the uv project name.
+# Bundle name matches the repository package name.
 # Host and profile are intentionally omitted -- set them via the CLI env
 # (DATABRICKS_HOST / `databricks auth login`) or a profile flag at deploy time.
 
