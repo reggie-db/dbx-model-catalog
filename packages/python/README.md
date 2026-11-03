@@ -1,37 +1,19 @@
 # dbx-model-catalog
 
-Typed Python client for the JSON or Brotli-compressed Databricks model catalog.
-The Pydantic models are generated from the same Zod-owned JSON Schema as the
-TypeScript client.
+Python client and sync library for the Databricks model catalog.
 
 ```py
-from typing import assert_type
+from dbx_model_catalog import ModelCatalogClient
 
-from dbx_model_catalog import (
-    CatalogModelRecord,
-    CatalogQueryOptions,
-    ModelCatalogClient,
-)
-
-catalog = ModelCatalogClient.from_url(
-    "https://raw.githubusercontent.com/example/dbx-model-catalog/main/catalog.json.br"
-)
-models = catalog.query(
-    {
-        "$and": [
-            {"status": "active"},
-            {"tasks": ["reasoning", "chat"]},
-            {"rankings": {"metric": "rating", "rank": {"$lte": 10}}},
-        ]
-    },
-    CatalogQueryOptions(order_by="name", limit=20),
-)
-
-assert_type(models, list[CatalogModelRecord])
+catalog = ModelCatalogClient.from_url("https://example.com/catalog.json.br")
+models = catalog.list()
 ```
 
-`ModelCatalogClient.from_url()` accepts `fetch: Callable[[str], bytes]` and
-`decode: Callable[[bytes, Literal["json", "brotli"]], str]` overrides. Query
-objects support `$and`, `$or`, `$not`, comparisons, text operators, sorting,
-limits, recursive arrays, and nested arrays of objects. Query results always
-contain the complete `CatalogModelRecord`.
+The package includes Pydantic catalog models, JSON and Brotli loading, a
+serializable query DSL, source sync clients, and catalog normalization. The
+normalized catalog uses DiskCache for one-hour persistent caching and supports
+explicit refresh through `CatalogSync.sync(refresh=True)`.
+
+Builds regenerate the Pydantic models from the committed JSON Schema. A custom
+Hatch hook also builds the Pynect-based `@regbo/dbx-model-catalog` npm package
+and includes its tarball as a Python build artifact.

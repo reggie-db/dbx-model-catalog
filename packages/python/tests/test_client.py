@@ -184,6 +184,21 @@ def test_typed_callback(catalog: dict[str, object]) -> None:
     assert [record.id for record in results] == ["databricks-gpt-active"]
 
 
+def test_returns_a_standard_typed_list(catalog: dict[str, object]) -> None:
+    client = ModelCatalogClient.from_catalog(catalog)
+    models = client.list()
+    results = [model for model in models if model.status.value == "active"]
+    results.sort(key=lambda model: model.name.casefold(), reverse=True)
+
+    assert_type(models, list[CatalogModelRecord])
+    assert isinstance(models, list)
+    assert [record.id for record in results] == [
+        "databricks-llama",
+        "databricks-gpt-active",
+    ]
+    assert len(models) == 3
+
+
 def test_serializes_parses_and_executes(catalog: dict[str, object]) -> None:
     client = ModelCatalogClient.from_catalog(catalog)
     query = SerializableCatalogQuery(

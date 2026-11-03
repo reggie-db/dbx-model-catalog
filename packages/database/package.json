@@ -1,7 +1,0 @@
-{
-  "name": "@dbx-model-catalog/database",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "exports": "./src/index.ts"
-}

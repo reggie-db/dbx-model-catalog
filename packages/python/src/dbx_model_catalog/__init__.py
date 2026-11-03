@@ -16,6 +16,7 @@ from .query import (
     parse_catalog_query,
     serialize_catalog_query,
 )
+from .sync import CatalogSync, CatalogSyncSources, build_model_catalog
 
 __all__ = [
     "CatalogFetch",
@@ -29,9 +30,12 @@ __all__ = [
     "CatalogQuery",
     "CatalogQueryExpression",
     "CatalogQueryOptions",
+    "CatalogSync",
+    "CatalogSyncSources",
     "ModelCatalog",
     "ModelCatalogClient",
     "SerializableCatalogQuery",
+    "build_model_catalog",
     "parse_catalog_query",
     "serialize_catalog_query",
 ]

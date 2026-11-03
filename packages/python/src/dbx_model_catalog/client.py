@@ -70,6 +70,9 @@ class ModelCatalogClient:
         return CatalogModelRecord(id=model_id, **model.model_dump())
 
     def all(self) -> list[CatalogModelRecord]:
+        return self.list()
+
+    def list(self) -> list[CatalogModelRecord]:
         return [
             CatalogModelRecord(id=model_id, **model.model_dump())
             for model_id, model in self.catalog.models.items()
@@ -81,7 +84,6 @@ class ModelCatalogClient:
         options: CatalogQueryOptions | Mapping[str, object] | None = None,
     ) -> list[CatalogModelRecord]:
         return query_catalog_records(self.all(), expression, options)
-
 
 def fetch_catalog(url: str) -> bytes:
     with urlopen(url) as response:

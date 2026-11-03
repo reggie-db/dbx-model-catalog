@@ -1,0 +1,52 @@
+{
+  "name": "@regbo/dbx-model-catalog",
+  "version": "0.1.0",
+  "description": "Generated Node and Bun client for the Python dbx-model-catalog package",
+  "type": "module",
+  "bin": {
+    "dbx-model-catalog": "./dist/cli.js"
+  },
+  "engines": {
+    "node": "^22.11.0 || >=24.10.0 <=26.x"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    }
+  },
+  "files": [
+    "dist",
+    "py"
+  ],
+  "scripts": {
+    "cli": "bun src/cli.ts",
+    "generate": "bun scripts/generate.ts",
+    "bundle": "bun scripts/build.ts && bunx tsc -b tsconfig.json --force",
+    "build": "bun run generate && bun run bundle",
+    "pack": "bun run build && bun pm pack --destination dist-package",
+    "prepublishOnly": "bun run build",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@antfu/install-pkg": "^2.1.0",
+    "@types/node": "^24.10.0",
+    "fireargs": "^0.6.2",
+    "pynect": "^0.8.2",
+    "typescript": "^5.9.3",
+    "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "fireargs": "^0.6.2"
+  },
+  "peerDependenciesMeta": {
+    "fireargs": {
+      "optional": true
+    }
+  },
+  "sideEffects": false
+}

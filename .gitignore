@@ -54,6 +54,10 @@ node_modules/
 .yarn/
 dist/
 build/
+dist-node/
+*.tsbuildinfo
+packages/node/dist-package/
+packages/node/py/
 
 # ---- Databricks ----------------------------------------------------------
 .databricks/
