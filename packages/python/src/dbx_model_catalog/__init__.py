@@ -1,8 +1,14 @@
 from .client import (
+    CatalogCacheDirectory,
     CatalogFetch,
     CatalogPayloadDecoder,
     CatalogPayloadEncoding,
     ModelCatalogClient,
+    PUBLISHED_CATALOG_BASE_URL,
+    PUBLISHED_CATALOG_CACHE_TTL,
+    PUBLISHED_CATALOG_URL,
+    fetch_published_catalog,
+    published_catalog_cache_directory,
 )
 from .models import CatalogModel, CatalogModelRecord, ModelCatalog
 from .query import (
@@ -19,6 +25,7 @@ from .query import (
 from .sync import CatalogSync, CatalogSyncSources, build_model_catalog
 
 __all__ = [
+    "CatalogCacheDirectory",
     "CatalogFetch",
     "CatalogModel",
     "CatalogModelRecord",
@@ -34,8 +41,13 @@ __all__ = [
     "CatalogSyncSources",
     "ModelCatalog",
     "ModelCatalogClient",
+    "PUBLISHED_CATALOG_BASE_URL",
+    "PUBLISHED_CATALOG_CACHE_TTL",
+    "PUBLISHED_CATALOG_URL",
     "SerializableCatalogQuery",
     "build_model_catalog",
+    "fetch_published_catalog",
     "parse_catalog_query",
+    "published_catalog_cache_directory",
     "serialize_catalog_query",
 ]

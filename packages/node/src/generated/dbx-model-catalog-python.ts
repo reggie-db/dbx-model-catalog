@@ -10,9 +10,11 @@ export interface NodeCatalogSync {
 }
 
 export interface NodeModelCatalogClient {
+  readonly all: () => Promise<ReadonlyArray<Readonly<Record<string, unknown>>>>;
   readonly get: (model_id: string) => Promise<Readonly<Record<string, unknown>> | null>;
   readonly get_schema_version: () => Promise<number>;
   readonly get_size: () => Promise<number>;
+  readonly get_updated_at: () => Promise<string>;
   readonly list: () => Promise<ReadonlyArray<Readonly<Record<string, unknown>>>>;
   readonly query: (expression?: Readonly<Record<string, unknown>> | null, options?: Readonly<Record<string, unknown>> | null) => Promise<ReadonlyArray<Readonly<Record<string, unknown>>>>;
   $release(): Promise<void>;
@@ -22,7 +24,7 @@ export interface NodeModelCatalogClient {
 
 export interface ClientModule {
   readonly NodeCatalogSync: (...args: unknown[]) => Promise<NodeCatalogSync>;
-  readonly NodeModelCatalogClient: (catalog: Readonly<Record<string, unknown>>) => Promise<NodeModelCatalogClient>;
+  readonly NodeModelCatalogClient: (catalog?: Readonly<Record<string, unknown>> | null, refresh?: boolean, url?: string, cache_directory?: string | null, cache_ttl?: number) => Promise<NodeModelCatalogClient>;
 }
 
 export interface DbxModelCatalogPythonModules {

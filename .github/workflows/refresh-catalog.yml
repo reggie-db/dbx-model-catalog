@@ -1,0 +1,64 @@
+name: Refresh catalog
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      refresh_sources:
+        description: Ignore cached sources and fetch everything again
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-catalog
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          download-from-astral-mirror: true
+          enable-cache: true
+          python-version: "3.12"
+          version: latest-known
+      - name: Restore source and normalized catalog cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/dbx-model-catalog
+          key: catalog-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            catalog-${{ runner.os }}-
+      - name: Build published catalog
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          REFRESH_SOURCES: ${{ github.event_name == 'workflow_dispatch' && inputs.refresh_sources || false }}
+        run: |
+          arguments=(--output-directory site)
+          if [[ "$REFRESH_SOURCES" == "true" ]]; then
+            arguments+=(--refresh)
+          fi
+          uv run --project packages/python --extra sync \
+            python packages/python/scripts/publish_catalog.py "${arguments[@]}"
+      - name: Commit catalog updates
+        run: |
+          if git diff --quiet -- site/catalog.json site/catalog.json.br; then
+            echo "Catalog is unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/catalog.json site/catalog.json.br
+          git commit -m "Refresh published model catalog"
+          git pull --rebase
+          git push

@@ -20,6 +20,18 @@ The previous Zod, TypeScript client, and TypeScript sync packages have been
 removed. The committed JSON Schema in the Python package remains the catalog
 contract and generates the Pydantic models during builds.
 
+## Published catalog
+
+The normalized Databricks catalog is published as JSON and Brotli-compressed
+JSON at <https://reggie-db.github.io/dbx-model-catalog/>. The page provides a
+searchable dataset explorer and direct downloads. Raw upstream source payloads
+are not published.
+
+`.github/workflows/refresh-catalog.yml` refreshes the normalized artifacts each
+week and commits changes under `site/`. It restores the Python source and
+normalization cache between runs. `.github/workflows/pages.yml` deploys that
+directory through GitHub Pages whenever the site or catalog changes.
+
 ## Development
 
 Install Hatch and run the workspace checks:
@@ -36,6 +48,7 @@ hatch run schema
 hatch run node-generate
 hatch run node-build
 hatch run build
+bun run catalog:publish
 bun run sync --format
 ```
 
@@ -91,15 +104,16 @@ hatch run publish:node
 ```py
 from dbx_model_catalog import CatalogQueryOptions, ModelCatalogClient
 
-catalog = ModelCatalogClient.from_url(
-    "https://raw.githubusercontent.com/example/dbx-model-catalog/main/catalog.json.br"
-)
+catalog = ModelCatalogClient.from_published()
 
 models = catalog.query(
     {"status": "active", "tasks": ["reasoning", "chat"]},
     CatalogQueryOptions(order_by="name", limit=20),
 )
 ```
+
+`from_published()` caches the compressed payload in the platform-native user
+cache directory for one hour. Pass `refresh=True` to replace the local copy.
 
 `list()` returns a standard typed list for native filtering and sorting:
 
@@ -120,14 +134,18 @@ import { DbxModelCatalogPython } from "@regbo/dbx-model-catalog";
 
 await using python = new DbxModelCatalogPython();
 const catalogModule = await python.client;
-const catalog = await catalogModule.NodeModelCatalogClient({
-  schema_version: 11,
-  updated_at: "2026-11-03T12:00:00Z",
-  models: {},
-});
+const catalog = await catalogModule.NodeModelCatalogClient();
 
 console.log(await catalog.get_size());
+console.log(await catalog.query(
+  { status: { $eq: "active" }, capabilities: { tools: { $eq: true } } },
+  { orderBy: "name", limit: 10 },
+));
 ```
+
+The Node client contains no separate catalog implementation. Pynect constructs
+the Python client, downloads the same published Brotli artifact, and reuses the
+same Python DiskCache-backed local payload cache.
 
 The generated default requests `dbx-model-catalog>=<matching version>` from
 `uv`. Callers can override any Pynect environment option:

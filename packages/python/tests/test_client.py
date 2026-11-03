@@ -14,6 +14,7 @@ from dbx_model_catalog import (
     parse_catalog_query,
     serialize_catalog_query,
 )
+from dbx_model_catalog.publishing import write_catalog_artifacts
 
 
 def model(name: str, status: str, tasks: list[str]) -> dict[str, object]:
@@ -115,6 +116,48 @@ def test_accepts_injected_decoder(catalog: dict[str, object]) -> None:
         b"not-brotli", decode=lambda _payload, _encoding: json.dumps(catalog)
     )
     assert client.size == 3
+
+
+def test_published_client_uses_persistent_cache_and_refreshes(
+    catalog: dict[str, object], tmp_path
+) -> None:
+    payload = brotli.compress(json.dumps(catalog).encode())
+    calls = 0
+
+    def fetch(_url: str) -> bytes:
+        nonlocal calls
+        calls += 1
+        return payload
+
+    first = ModelCatalogClient.from_published(
+        url="https://example.com/catalog.json.br",
+        cache_directory=tmp_path,
+        fetch=fetch,
+    )
+    second = ModelCatalogClient.from_published(
+        url="https://example.com/catalog.json.br",
+        cache_directory=tmp_path,
+        fetch=fetch,
+    )
+    refreshed = ModelCatalogClient.from_published(
+        refresh=True,
+        url="https://example.com/catalog.json.br",
+        cache_directory=tmp_path,
+        fetch=fetch,
+    )
+
+    assert first.size == second.size == refreshed.size == 3
+    assert calls == 2
+
+
+def test_writes_normalized_json_and_brotli_artifacts(
+    catalog: dict[str, object], tmp_path
+) -> None:
+    parsed = ModelCatalogClient.from_catalog(catalog).catalog
+    json_path, brotli_path = write_catalog_artifacts(parsed, tmp_path)
+
+    assert ModelCatalogClient.from_json(json_path.read_bytes()).catalog == parsed
+    assert ModelCatalogClient.from_brotli(brotli_path.read_bytes()).catalog == parsed
 
 
 def test_queries_boolean_text_sort_and_limit(catalog: dict[str, object]) -> None:

@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "hatch run build",
+    "catalog:publish": "uv run --project packages/python python packages/python/scripts/publish_catalog.py",
     "check": "hatch run check",
     "sync": "bun packages/node/src/cli.ts sync",
     "test": "hatch run test",

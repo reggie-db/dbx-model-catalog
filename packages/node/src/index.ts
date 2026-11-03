@@ -1,6 +1,5 @@
 import {
   DbxModelCatalogPython as GeneratedDbxModelCatalogPython,
-  type DbxModelCatalogPythonModules,
 } from "./generated/dbx-model-catalog-python.js";
 import type { CreateVenvOptions } from "pynect";
 
@@ -10,7 +9,12 @@ const runtimeEnvironment = {
     "https://releases.astral.sh/github/python-build-standalone/releases/download",
 } as const;
 
-export type { DbxModelCatalogPythonModules };
+export type {
+  ClientModule,
+  DbxModelCatalogPythonModules,
+  NodeCatalogSync,
+  NodeModelCatalogClient,
+} from "./generated/dbx-model-catalog-python.js";
 
 export class DbxModelCatalogPython extends GeneratedDbxModelCatalogPython {
   constructor(options: CreateVenvOptions = {}) {

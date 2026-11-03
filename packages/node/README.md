@@ -13,6 +13,29 @@ defaults uv and Python provisioning to `releases.astral.sh`, so it does not hit
 GitHub release endpoints. Existing compatible uv and Python installations are
 reused without downloading either tool.
 
+## Client
+
+The default Pynect client loads the published normalized catalog and caches the
+compressed payload through the Python package. Node does not implement a second
+fetch, cache, model, or query layer.
+
+```ts
+import { DbxModelCatalogPython } from "@regbo/dbx-model-catalog";
+
+await using python = new DbxModelCatalogPython();
+const catalogModule = await python.client;
+const catalog = await catalogModule.NodeModelCatalogClient();
+
+console.log(await catalog.get_size());
+console.log(await catalog.query(
+  { status: { $eq: "active" } },
+  { orderBy: "name", limit: 20 },
+));
+```
+
+Pass `true` as the second constructor argument to refresh the local published
+catalog cache: `NodeModelCatalogClient(null, true)`.
+
 ## CLI
 
 The package publishes a Node-only `dbx-model-catalog` executable. It lazily

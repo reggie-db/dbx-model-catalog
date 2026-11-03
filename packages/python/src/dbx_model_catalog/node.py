@@ -4,7 +4,11 @@ from collections.abc import Mapping
 from dataclasses import fields
 from typing import Any
 
-from .client import ModelCatalogClient
+from .client import (
+    PUBLISHED_CATALOG_CACHE_TTL,
+    PUBLISHED_CATALOG_URL,
+    ModelCatalogClient,
+)
 from .sync import CatalogSync, CatalogSyncSources
 
 JsonObject = dict[str, Any]
@@ -12,8 +16,24 @@ JsonQuery = Mapping[str, Any]
 
 
 class NodeModelCatalogClient:
-    def __init__(self, catalog: dict[str, Any]) -> None:
-        self._client = ModelCatalogClient.from_catalog(catalog)
+    def __init__(
+        self,
+        catalog: dict[str, Any] | None = None,
+        refresh: bool = False,
+        url: str = PUBLISHED_CATALOG_URL,
+        cache_directory: str | None = None,
+        cache_ttl: float = PUBLISHED_CATALOG_CACHE_TTL,
+    ) -> None:
+        self._client = (
+            ModelCatalogClient.from_published(
+                refresh=refresh,
+                url=url,
+                cache_directory=cache_directory,
+                cache_ttl=cache_ttl,
+            )
+            if catalog is None
+            else ModelCatalogClient.from_catalog(catalog)
+        )
 
     @classmethod
     def from_json(cls, value: str) -> NodeModelCatalogClient:
@@ -29,12 +49,18 @@ class NodeModelCatalogClient:
     def get_size(self) -> int:
         return self._client.size
 
+    def get_updated_at(self) -> str:
+        return self._client.updated_at.isoformat()
+
     def get(self, model_id: str) -> JsonObject | None:
         model = self._client.get(model_id)
         return None if model is None else model.model_dump(mode="json")
 
     def list(self) -> list[JsonObject]:
         return [model.model_dump(mode="json") for model in self._client.list()]
+
+    def all(self) -> list[JsonObject]:
+        return self.list()
 
     def query(
         self,
