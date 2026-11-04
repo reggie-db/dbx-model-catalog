@@ -1,58 +1,67 @@
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { createCatalogRpcClient } from "../src/rpc.ts";
-import { createCatalogRpcApp } from "../src/server/app.ts";
+import { DbxModelCatalogPython } from "../src/index.ts";
+import { DbxModelCatalogWebSocket } from "../src/rpc.ts";
+import { startCatalogServer, type CatalogServer } from "../src/server/app.ts";
+import type { ModelCatalog } from "../src/generated/catalog-types.ts";
 
 const workspaceRoot = path.resolve(import.meta.dir, "../../..");
-const app = createCatalogRpcApp({
-  catalogPath: path.join(workspaceRoot, "site/catalog.json"),
-  python: {
-    project: false,
-    with: [],
-    withEditable: [path.join(workspaceRoot, "packages/python")],
-  },
-  siteDirectory: path.join(workspaceRoot, "site"),
-});
+const pythonProject = path.join(workspaceRoot, "packages/python");
+const catalogPromise = Bun.file(path.join(workspaceRoot, "site/catalog.json")).json() as Promise<ModelCatalog>;
+let server: CatalogServer;
 
-let client: ReturnType<typeof createCatalogRpcClient>;
-
-beforeAll(() => {
-  app.listen({ hostname: "127.0.0.1", port: 0 });
-  client = createCatalogRpcClient(`http://127.0.0.1:${app.server?.port}`);
+beforeAll(async () => {
+  server = await startCatalogServer({
+    port: 0,
+    python: {
+      project: false,
+      with: [],
+      withEditable: [pythonProject],
+    },
+    siteDirectory: path.join(workspaceRoot, "site"),
+  });
 });
 
 afterAll(async () => {
-  await app.stop();
+  await server.close();
 });
 
-describe("catalog RPC", () => {
-  test("serves health and the generated catalog contract", async () => {
-    const health = await client.rpc.health.get();
-    expect(health.error).toBeNull();
-    expect(health.data).toEqual({ ok: true });
+describe("catalog Pynect transports", () => {
+  test("serves the site and browser WebSocket endpoint", async () => {
+    const health = await fetch(new URL("/health", server.url));
+    expect(health.status).toBe(200);
+    expect(await health.json()).toEqual({ ok: true });
 
-    const catalog = await client.rpc.catalog.get();
-    expect(catalog.error).toBeNull();
-    expect(catalog.data?.schema_version).toBeGreaterThan(0);
-    expect(Object.keys(catalog.data?.models ?? {}).length).toBeGreaterThan(0);
-    expect(typeof catalog.data?.updated_at).toBe("string");
+    await using python = new DbxModelCatalogWebSocket({ baseUrl: server.url });
+    const info = await python.venv.ready();
+    expect(info.url).toBe(new URL("/pynect", server.url).href.replace("http:", "ws:"));
   });
 
-  test("supports typed model lookup and query", async () => {
-    const catalog = await client.rpc.catalog.get();
-    const modelId = Object.keys(catalog.data?.models ?? {})[0];
-    expect(modelId).toBeDefined();
-
-    const model = await client.rpc.models({ id: modelId! }).get();
-    expect(model.error).toBeNull();
-    expect(model.data?.id).toBe(modelId);
-
-    const query = await client.rpc.query.post({
-      expression: { status: { $eq: "active" } },
-      options: { limit: 2, orderBy: "name" },
+  test("returns the same generated client contract over IPC and WebSocket", async () => {
+    const catalog = await catalogPromise;
+    await using local = new DbxModelCatalogPython({
+      project: false,
+      with: [],
+      withEditable: [pythonProject],
     });
-    expect(query.error).toBeNull();
-    expect(query.data).toHaveLength(2);
-    expect(query.data?.every(record => record.status === "active")).toBe(true);
-  }, 15_000);
+    await using remote = new DbxModelCatalogWebSocket({ baseUrl: server.url });
+    const [localModule, remoteModule] = await Promise.all([local.client, remote.client]);
+    const [localClient, remoteClient] = await Promise.all([
+      localModule.NodeModelCatalogClient(catalog as unknown as Record<string, unknown>),
+      remoteModule.NodeModelCatalogClient(catalog as unknown as Record<string, unknown>),
+    ]);
+
+    try {
+      const [localSize, remoteSize, localResult, remoteResult] = await Promise.all([
+        localClient.get_size(),
+        remoteClient.get_size(),
+        localClient.query({ status: { $eq: "active" } }, { limit: 2, orderBy: "name" }),
+        remoteClient.query({ status: { $eq: "active" } }, { limit: 2, orderBy: "name" }),
+      ]);
+      expect(remoteSize).toBe(localSize);
+      expect(remoteResult).toEqual(localResult);
+    } finally {
+      await Promise.all([localClient.$release(), remoteClient.$release()]);
+    }
+  }, 120_000);
 });

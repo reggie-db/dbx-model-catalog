@@ -1,8 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { delimiter, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compileFromFile } from "json-schema-to-typescript";
+import {
+  CATALOG_PYTHON_MODULES,
+  CATALOG_PYTHON_REQUIREMENT,
+} from "../src/contract.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pythonRoot = resolve(packageRoot, "../python");
@@ -13,12 +17,7 @@ const pynect = resolve(
   "node_modules/.bin",
   process.platform === "win32" ? "pynect.cmd" : "pynect",
 );
-const pyproject = readFileSync(resolve(pythonRoot, "pyproject.toml"), "utf8");
-const projectVersion = /^version\s*=\s*"([^"]+)"/m.exec(pyproject)?.[1];
-const version = process.argv[2] ?? projectVersion;
 const { VIRTUAL_ENV: _virtualEnvironment, ...environment } = process.env;
-
-if (!version) throw new Error("Could not determine Python package version");
 
 const output = resolve(packageRoot, "src/generated/dbx-model-catalog-python.ts");
 const catalogTypesOutput = resolve(packageRoot, "src/generated/catalog-types.ts");
@@ -60,15 +59,15 @@ const result = spawnSync(
     "generate",
     "--root",
     pythonSource,
-    "--module",
-    "client=dbx_model_catalog.node",
-    "--module",
-    "types=dbx_model_catalog._generated.node_types",
+    ...Object.entries(CATALOG_PYTHON_MODULES).flatMap(([name, target]) => [
+      "--module",
+      `${name}=${target}`,
+    ]),
     "--class-name",
     "DbxModelCatalogPython",
     "--no-project",
     "--with",
-    `dbx-model-catalog>=${version}`,
+    CATALOG_PYTHON_REQUIREMENT,
     "--out",
     output,
     "--validate-pydantic",

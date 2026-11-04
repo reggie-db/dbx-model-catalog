@@ -67,7 +67,7 @@ import {
 import { type ComponentType, type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  createCatalogRpcClient,
+  DbxModelCatalogWebSocket,
   type CatalogModel,
   type ModelCatalog as CatalogPayload,
 } from "../../packages/node/src/rpc.ts";
@@ -222,15 +222,25 @@ function formatDateTime(value: string) {
 }
 
 async function loadCatalog(): Promise<CatalogPayload> {
-  const { data, error } = await createCatalogRpcClient().rpc.catalog.get();
-  if (data) return data;
+  try {
+    await using python = new DbxModelCatalogWebSocket();
+    const module = await python.client;
+    const client = await module.NodeModelCatalogClient();
+    try {
+      return await client.get_catalog() as unknown as CatalogPayload;
+    } finally {
+      await client.$release();
+    }
+  } catch (error) {
+    if (!window.location.hostname.endsWith(".github.io")) throw error;
+  }
 
   if (window.location.hostname.endsWith(".github.io")) {
     const response = await fetch("catalog.json", { cache: "no-cache" });
     if (response.ok) return await response.json() as CatalogPayload;
   }
 
-  throw new Error(`Catalog RPC failed (${error?.status ?? "unknown"})`);
+  throw new Error("Catalog WebSocket connection failed");
 }
 
 function searchText(id: string, model: CatalogModel) {

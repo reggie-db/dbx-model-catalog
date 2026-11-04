@@ -28,7 +28,7 @@ class CustomBuildHook(BuildHookInterface):
                 artifact.unlink()
             subprocess.run(["bun", "install"], cwd=workspace, check=True)
             subprocess.run(
-                ["bun", "run", "generate", "--", self.metadata.version],
+                ["bun", "run", "generate"],
                 cwd=node_package,
                 check=True,
             )

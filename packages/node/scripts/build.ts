@@ -2,6 +2,7 @@ import {
   chmodSync,
   copyFileSync,
   mkdirSync,
+  readdirSync,
   realpathSync,
   rmSync,
 } from "node:fs";
@@ -15,23 +16,12 @@ const py = resolve(packageRoot, "py");
 const pynectRoot = realpathSync(resolve(packageRoot, "node_modules/pynect"));
 const dependencyModules = dirname(pynectRoot);
 const pyfigRoot = realpathSync(resolve(dependencyModules, "pyfig"));
-const pynectRuntime = realpathSync(resolve(pynectRoot, "dist/js/python-venv.js"));
 const undiciEntry = realpathSync(
   resolve(dirname(pyfigRoot), "undici/index.js"),
 );
 const runtimePaths: BunPlugin = {
   name: "runtime-paths",
   setup(build) {
-    build.onLoad({ filter: /python-venv\.js$/ }, async ({ path }) => {
-      if (realpathSync(path) !== pynectRuntime) return;
-      const source = await Bun.file(path).text();
-      const contents = source.replace(
-        "return (0, python_script_1.resolvePythonScript)(__dirname, 'pynect_worker.py');",
-        "return require('node:url').fileURLToPath(new URL('../py/pynect_worker.py', import.meta.url));",
-      );
-      if (contents === source) throw new Error("Pynect worker path was not found");
-      return { contents, loader: "js" };
-    });
     build.onLoad({ filter: /undici\/index\.js$/ }, async ({ path }) => {
       if (realpathSync(path) !== undiciEntry) return;
       const source = await Bun.file(path).text();
@@ -86,7 +76,12 @@ if (!rpcResult.success) {
 chmodSync(resolve(dist, "cli.js"), 0o755);
 
 mkdirSync(py, { recursive: true });
+const workerWheels = readdirSync(resolve(pynectRoot, "dist/py"))
+  .filter(name => /^pynect_worker-.*\.whl$/.test(name));
+if (workerWheels.length !== 1) {
+  throw new Error(`Expected one bundled Pynect worker wheel, found ${workerWheels.length}`);
+}
 copyFileSync(
-  resolve(pynectRoot, "dist/py/pynect_worker.py"),
-  resolve(py, "pynect_worker.py"),
+  resolve(pynectRoot, "dist/py", workerWheels[0]!),
+  resolve(py, workerWheels[0]!),
 );

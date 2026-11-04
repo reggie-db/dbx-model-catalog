@@ -1,7 +1,7 @@
 # dbx-model-catalog
 
-Python-first model catalog monorepo with a generated Node and Bun client plus a
-shared, strongly typed RPC server for the web explorer and local callers.
+Python-first model catalog monorepo with generated Node and browser clients that
+share one strongly typed Pynect contract over local IPC and WebSockets.
 
 ## Packages
 
@@ -9,10 +9,10 @@ shared, strongly typed RPC server for the web explorer and local callers.
   query DSL, source synchronization, catalog normalization, JSON Schema, and
   Hatch build hook.
 - `packages/node` publishes `@regbo/dbx-model-catalog`. Pynect generates its
-  TypeScript bridge from the Python package, and Elysia/Eden expose the same
-  catalog contract to browsers and local Node or Bun callers.
+  TypeScript bridge from the Python package. Local Node and Bun callers use IPC,
+  while browsers use the same generated module contract over WebSockets.
 
-Node client generation uses Pynect `^0.8.4` from npm. Pynect supplies compatible
+Node client generation uses Pynect `^0.8.5` from npm. Pynect supplies compatible
 Pyfig, Loqkit, and Optionkit dependencies through npm; the workspace has no
 GitHub links or vendored tarballs for those packages. The generated npm package
 bundles that runtime. Its runtime defaults uv and Python provisioning to
@@ -89,18 +89,14 @@ persistence under the system temporary directory. Warm `lookup` and normalized
 `--refresh` to evict and rebuild it immediately, refresh the source caches, and
 replace the normalized cache.
 
-`bun run site:serve` builds the explorer and starts the Bun server. The server
-loads the committed normalized catalog once, passes it to the generated Pynect
-Python client, and serves both the site and the typed RPC routes:
+`bun run site:serve` builds the explorer and starts the site with a Pynect
+WebSocket endpoint at `/pynect`. The Bun server launches the official
+`pynect-worker[server]` Python CLI from Pynect's bundled wheel through Pyfig and
+proxies binary WebSocket upgrades without defining another HTTP RPC contract.
 
-- `GET /rpc/health`
-- `GET /rpc/catalog`
-- `GET /rpc/models/:id`
-- `POST /rpc/query`
-
-The RPC contract is derived from the catalog JSON Schema and Python annotations
-rather than maintained separately in the site. The generated schema types,
-Pynect bridge, Elysia server, and Eden client therefore share one model shape.
+The browser and local Node clients import the same generated Python modules and
+use the same `NodeModelCatalogClient` interface. Node uses Pynect's local IPC
+transport; the browser uses Pynect's WebSocket transport.
 
 Hugging Face-backed sources use `HF_TOKEN` from the process environment. When
 it is unset, the sync client walks upward from the current directory to the
@@ -193,24 +189,26 @@ This is the runtime route:
    and starts the persistent Pynect worker.
 
 Neither `uv` nor Python must already be installed for a normal published Node
-client invocation. In a development checkout, pass `project: "../python"` and
-`with: []` to use the local Hatch package instead.
+client invocation. The generated client requests the latest available
+`dbx-model-catalog` package without pinning it. In a development checkout, pass
+`project: false`, `with: []`, and `withEditable: ["../python"]` to use the local
+Hatch package instead. The site server selects that editable checkout
+automatically when `packages/python/pyproject.toml` exists.
 
-The same strongly typed Eden client used by the browser is exported for local
-Node and Bun callers:
+The browser binding exposes the same generated module contract as local IPC:
 
 ```ts
-import { createCatalogRpcClient } from "@regbo/dbx-model-catalog/rpc";
+import { DbxModelCatalogWebSocket } from "@regbo/dbx-model-catalog/rpc";
 
-const api = createCatalogRpcClient("http://127.0.0.1:8000");
-const result = await api.rpc.query.post({
-  expression: { status: { $eq: "active" } },
-  options: { orderBy: "name", limit: 10 },
+await using python = new DbxModelCatalogWebSocket({
+  baseUrl: "http://127.0.0.1:8000",
 });
-
-if (result.error) throw result.error;
-console.log(result.data);
+const module = await python.client;
+const client = await module.NodeModelCatalogClient();
+console.log(await client.query(
+  { status: { $eq: "active" } },
+  { orderBy: "name", limit: 10 },
+));
 ```
 
-In a browser, omit the URL to use `window.location.origin`. Local Node and Bun
-callers default to `http://127.0.0.1:8000` and can pass any deployed origin.
+In a browser, omit `baseUrl` to use `window.location.origin`.

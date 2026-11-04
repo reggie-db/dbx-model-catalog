@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "../packages/node/src/rpc.ts", "../packages/node/src/generated/catalog-types.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "../packages/node/src/rpc.ts", "../packages/node/src/generated/**/*.ts"]
 }
