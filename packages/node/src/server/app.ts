@@ -2,6 +2,7 @@ import { resolve, sep } from "node:path";
 import { Elysia, t } from "elysia";
 import {
   DbxModelCatalogPython,
+  type ClientModule,
   type CreateVenvOptions,
   type NodeModelCatalogClient,
 } from "../index.js";
@@ -20,12 +21,15 @@ export interface CatalogRpcAppOptions {
 
 export function createCatalogRpcApp(options: CatalogRpcAppOptions) {
   const python = new DbxModelCatalogPython(options.python);
+  const catalogPromise = Bun.file(options.catalogPath).json() as Promise<ModelCatalog>;
+  let clientModulePromise: Promise<ClientModule> | undefined;
   let clientPromise: Promise<NodeModelCatalogClient> | undefined;
 
   const catalogClient = () => {
     clientPromise ??= (async () => {
-      const payload = await Bun.file(options.catalogPath).json() as ModelCatalog;
-      const module = await python.client;
+      const payload = await catalogPromise;
+      clientModulePromise ??= python.client;
+      const module = await clientModulePromise;
       return module.NodeModelCatalogClient(payload as unknown as Record<string, unknown>);
     })();
     return clientPromise;
@@ -33,15 +37,11 @@ export function createCatalogRpcApp(options: CatalogRpcAppOptions) {
 
   return new Elysia()
     .get("/rpc/health", () => ({ ok: true as const }))
-    .get("/rpc/catalog", async (): Promise<ModelCatalog> => {
-      const client = await catalogClient();
-      return await client.get_catalog() as unknown as ModelCatalog;
-    })
+    .get("/rpc/catalog", (): Promise<ModelCatalog> => catalogPromise)
     .get("/rpc/models/:id", async ({ params, status }): Promise<CatalogModelRecord> => {
-      const client = await catalogClient();
-      const model = await client.get(params.id) as unknown as CatalogModelRecord | null;
+      const model = (await catalogPromise).models[params.id];
       if (!model) return status(404, { message: `Unknown model: ${params.id}` }) as never;
-      return model;
+      return { ...model, id: params.id };
     })
     .post(
       "/rpc/query",
@@ -69,6 +69,7 @@ export function createCatalogRpcApp(options: CatalogRpcAppOptions) {
       return status(404, "Not found");
     })
     .onStop(async () => {
+      if (clientPromise) await (await clientPromise).$release().catch(() => undefined);
       await python.close();
     });
 }

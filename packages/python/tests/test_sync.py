@@ -170,12 +170,60 @@ def test_builds_catalog_from_python_sources() -> None:
         lm_arena=SyncResult(
             source="lm-arena",
             fetchedAt=fetched,
-            data=LMArenaCatalogData(dataset="x", split="latest", metadata=[], configurations={}),
+            data=LMArenaCatalogData.model_validate(
+                {
+                    "dataset": "x",
+                    "split": "latest",
+                    "metadata": [],
+                    "configurations": {
+                        "agent": {
+                            "rows": [
+                                {
+                                    "model_name": "GPT Test (High)",
+                                    "rank": 2,
+                                    "leaderboard_publish_date": "2026-10-31",
+                                    "score": 0.42,
+                                    "score_ci_lower": 0.4,
+                                    "score_ci_upper": 0.44,
+                                    "observation_count": 120,
+                                    "session_count": 40,
+                                    "category": "overall",
+                                },
+                                {
+                                    "model_name": "Unrelated Model",
+                                    "rank": 1,
+                                    "score": 0.7,
+                                    "score_ci_lower": 0.6,
+                                    "score_ci_upper": 0.8,
+                                    "observation_count": 50,
+                                },
+                            ]
+                        }
+                    },
+                }
+            ),
         ),
         live_bench=SyncResult(
             source="livebench",
             fetchedAt=fetched,
-            data=LiveBenchCatalogData(dataset="LiveBench/livebench.github.io", release="2026-10-30", metadata=[], categories={}, rows=[]),
+            data=LiveBenchCatalogData.model_validate(
+                {
+                    "dataset": "LiveBench/livebench.github.io",
+                    "release": "2026-10-30",
+                    "metadata": [],
+                    "categories": {"Coding": ["code_generation", "code_completion"]},
+                    "rows": [
+                        {
+                            "model": "unrelated-model",
+                            "scores": {"code_generation": 99, "code_completion": 99},
+                        },
+                        {
+                            "model": "gpt-test-high-effort",
+                            "scores": {"code_generation": 80, "code_completion": 90},
+                        },
+                    ],
+                }
+            ),
         ),
         databricks=SyncResult(source="databricks", fetchedAt=fetched, data=databricks),
     )
@@ -205,6 +253,35 @@ def test_builds_catalog_from_python_sources() -> None:
     assert model.modalities.input == ["text", "application/pdf"]
     assert model.limits.context == 200000
     assert set(model.availability) == {"aws", "azure", "gcp"}
+    assert model.rankings[0].model_dump(mode="json", exclude_none=True) == {
+        "domain": "agent",
+        "category": "overall",
+        "rank": 2,
+        "published_at": "2026-10-31",
+        "variant": {"reasoning_effort": "high"},
+        "metric": "score",
+        "score": 0.42,
+        "lower": 0.4,
+        "upper": 0.44,
+        "observations": 120,
+        "sessions": 40,
+    }
+    assert model.benchmarks[0].model_dump(mode="json", exclude_none=True) == {
+        "name": "Coding",
+        "rank": 2,
+        "score": 85.0,
+        "task_count": 2,
+        "published_at": "2026-10-30",
+        "variant": {"reasoning_effort": "high"},
+    }
+    assert model.use_cases == [
+        "chat",
+        "reasoning",
+        "tool use",
+        "agentic workflows",
+        "document analysis",
+        "coding",
+    ]
 
 
 def test_catalog_sync_caches_normalized_catalog_and_refreshes(tmp_path) -> None:

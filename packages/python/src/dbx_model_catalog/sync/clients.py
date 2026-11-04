@@ -129,6 +129,7 @@ class LMArenaSyncClient(SyncClient[LMArenaCatalogData]):
 
     def read(self) -> LMArenaCatalogData:
         try:
+            import pyarrow.compute as compute
             import pyarrow.parquet as parquet
             from huggingface_hub import HfApi, hf_hub_download
         except ImportError as error:
@@ -142,7 +143,7 @@ class LMArenaSyncClient(SyncClient[LMArenaCatalogData]):
             for path in HfApi(token=token).list_repo_files(
                 LM_ARENA_DATASET, repo_type="dataset"
             )
-            if path.endswith(".parquet")
+            if path.endswith(".parquet") and Path(path).name.startswith("latest-")
         ]
         configurations: dict[str, LMArenaConfiguration] = {}
         metadata: list[dict[str, Any]] = []
@@ -154,10 +155,12 @@ class LMArenaSyncClient(SyncClient[LMArenaCatalogData]):
                 repo_type="dataset",
                 token=token,
             )
-            rows = [
-                LMArenaRow.model_validate(row)
-                for row in parquet.read_table(local).to_pylist()
-            ]
+            schema = parquet.read_schema(local)
+            columns = [name for name in LMArenaRow.model_fields if name in schema.names]
+            table = parquet.read_table(local, columns=columns)
+            if "rank" in table.column_names:
+                table = table.filter(compute.is_valid(table["rank"]))
+            rows = [LMArenaRow.model_validate(row) for row in table.to_pylist()]
             configurations.setdefault(
                 configuration, LMArenaConfiguration(rows=[])
             ).rows.extend(rows)

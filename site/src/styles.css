@@ -49,6 +49,14 @@ td { max-width: 360px; vertical-align: top; }
 .sort-button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: inherit; font-weight: inherit; cursor: pointer; }
 .sort-button svg { width: 13px; height: 13px; }
 .sort-idle { opacity: 0.38; }
+.table-header-control { display: inline-flex; align-items: center; gap: 3px; }
+.header-filter-trigger { display: inline-grid; width: 24px; height: 24px; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted-foreground); cursor: pointer; }
+.header-filter-trigger:hover, .header-filter-active { background: var(--muted); color: var(--foreground); }
+.header-filter-trigger svg { width: 13px; height: 13px; }
+.header-filter-active svg { fill: currentColor; }
+.header-filter-menu { width: 240px; }
+.header-filter-control { display: grid; gap: 8px; padding: 6px; }
+.header-filter-control [data-slot="button"] { justify-self: end; }
 .model-button { display: grid; gap: 3px; min-width: 220px; padding: 0; border: 0; background: transparent; color: var(--foreground); text-align: left; cursor: pointer; }
 .model-button > span { font-weight: 650; }
 .model-button:hover > span { color: var(--primary); }
@@ -72,13 +80,14 @@ td { max-width: 360px; vertical-align: top; }
 .model-dialog [data-slot="dialog-description"] { max-width: 760px; line-height: 1.55; }
 .detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0 2px; }
 .detail-grid > div { padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--muted); }
-.detail-grid dt { color: var(--muted-foreground); font-size: 0.72rem; }
+.detail-grid dt { color: var(--foreground); font-size: 0.75rem; font-weight: 500; }
 .detail-grid dd { margin: 3px 0 0; font-size: 0.86rem; font-weight: 650; }
 .detail-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
 .detail-section { min-width: 0; padding-block: 15px; border-top: 1px solid var(--border); }
 .detail-section h3 { margin: 0 0 9px; font-size: 0.82rem; }
 .detail-section p { margin: 0; font-size: 0.82rem; }
 .metric-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; font-size: 0.82rem; }
+.metric-detail { display: block; margin-top: 3px; color: var(--muted-foreground); line-height: 1.45; }
 
 footer { display: flex; justify-content: space-between; gap: 24px; padding-block: 22px 34px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 0.78rem; }
 footer a { display: inline-flex; align-items: center; gap: 5px; text-decoration: none; }

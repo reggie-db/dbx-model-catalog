@@ -223,6 +223,6 @@ class ModelCatalog(TypedDict):
     Published Databricks model catalog with identity, capabilities, availability, pricing, lifecycle, rankings, and benchmarks.
     """
 
-    schema_version: Literal[12]
+    schema_version: Literal[14]
     updated_at: str
     models: dict[str, CatalogModel]

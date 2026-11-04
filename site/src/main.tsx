@@ -39,11 +39,17 @@ import TypeSafeAI from "@lobehub/icons/es/TypeSafeAI";
 import XAI from "@lobehub/icons/es/XAI";
 import Zhipu from "@lobehub/icons/es/Zhipu";
 import {
+  type Column,
   type ColumnDef,
+  type ColumnFiltersState,
+  type FilterFn,
   type SortingState,
   type VisibilityState,
   flexRender,
   getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
+  getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
@@ -54,6 +60,7 @@ import {
   Columns3,
   Download,
   ExternalLink,
+  Filter,
   RotateCcw,
   Search,
 } from "lucide-react";
@@ -95,31 +102,60 @@ const columnLabels: Record<string, string> = {
   clouds: "Clouds",
   context: "Context",
   family: "Family",
+  inputModalities: "Input modalities",
   inputLimit: "Input limit",
   knowledgeCutoff: "Knowledge cutoff",
+  license: "License",
   model: "Model",
   openWeights: "Open weights",
+  outputModalities: "Output modalities",
   outputLimit: "Output limit",
   publisher: "Publisher",
   rankings: "Best ranking",
   released: "Released",
+  servingModes: "Serving modes",
   status: "Status",
+  tasks: "Tasks",
   type: "Type",
   updated: "Updated",
+  useCases: "Use cases",
 };
 
 const defaultColumnVisibility: VisibilityState = {
   aliases: false,
-  benchmarks: false,
+  inputModalities: false,
   inputLimit: false,
   knowledgeCutoff: false,
+  license: false,
   openWeights: false,
+  outputModalities: false,
   outputLimit: false,
-  rankings: false,
   released: false,
+  servingModes: false,
+  tasks: false,
   type: false,
   updated: false,
+  useCases: false,
 };
+
+const textFilter: FilterFn<CatalogRow> = (row, columnId, value) =>
+  String(row.getValue(columnId) ?? "").toLocaleLowerCase().includes(String(value).trim().toLocaleLowerCase());
+
+const minimumFilter: FilterFn<CatalogRow> = (row, columnId, value) => {
+  const minimum = Number(value);
+  const actual = row.getValue<number | undefined>(columnId);
+  return !Number.isFinite(minimum) || (typeof actual === "number" && actual >= minimum);
+};
+
+const maximumFilter: FilterFn<CatalogRow> = (row, columnId, value) => {
+  const maximum = Number(value);
+  const actual = row.getValue<number | undefined>(columnId);
+  return !Number.isFinite(maximum) || (typeof actual === "number" && actual <= maximum);
+};
+
+const selectFilterColumns = new Set(["family", "openWeights", "publisher", "status", "type"]);
+const minimumFilterColumns = new Set(["context", "inputLimit", "outputLimit"]);
+const maximumFilterColumns = new Set(["benchmarks", "rankings"]);
 
 const publisherIcons: Record<string, PublisherIcon> = {
   "Alibaba Cloud": AlibabaCloud,
@@ -148,6 +184,10 @@ function activeClouds(model: CatalogModel) {
   return (Object.entries(model.availability ?? {}) as Array<[Cloud, { status: string }]>)
     .filter(([, availability]) => availability?.status !== "retired")
     .map(([cloud]) => cloud);
+}
+
+function servingModes(model: CatalogModel) {
+  return [...new Set(Object.values(model.availability).flatMap(availability => availability.serving_modes))];
 }
 
 function bestRanking(model: CatalogModel) {
@@ -200,9 +240,16 @@ function searchText(id: string, model: CatalogModel) {
     model.description,
     model.publisher,
     model.family,
+    model.license,
     ...model.aliases,
     ...model.tasks,
     ...model.use_cases,
+    ...model.modalities.input,
+    ...model.modalities.output,
+    ...activeCapabilities(model),
+    ...activeClouds(model),
+    ...servingModes(model),
+    ...model.notices.flatMap(notice => [notice.kind, notice.title, notice.text]),
     ...model.rankings.flatMap(ranking => [ranking.domain, ranking.category]),
     ...model.benchmarks.map(benchmark => benchmark.name),
   ]
@@ -262,8 +309,90 @@ function SelectFilter({
   );
 }
 
+function HeaderFilter({ column, label }: { column: Column<CatalogRow, unknown>; label: string }) {
+  if (!column.getCanFilter()) return null;
+  const current = String(column.getFilterValue() ?? "");
+  const isSelect = selectFilterColumns.has(column.id);
+  const isNumeric = minimumFilterColumns.has(column.id) || maximumFilterColumns.has(column.id);
+  const options = isSelect
+    ? [...column.getFacetedUniqueValues().keys()]
+        .filter(value => value != null && String(value).length)
+        .map(String)
+        .sort((left, right) => left.localeCompare(right))
+    : [];
+  const prompt = minimumFilterColumns.has(column.id)
+    ? "Minimum value"
+    : maximumFilterColumns.has(column.id)
+      ? "Maximum rank"
+      : `Filter ${label.toLocaleLowerCase()}`;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={`header-filter-trigger${column.getIsFiltered() ? " header-filter-active" : ""}`}
+          aria-label={`Filter ${label}`}
+          title={`Filter ${label}`}
+        >
+          <Filter aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="header-filter-menu" onCloseAutoFocus={event => event.preventDefault()}>
+        <DropdownMenuLabel>Filter {label}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <div className="header-filter-control" onKeyDown={event => event.stopPropagation()}>
+          {isSelect ? (
+            <Select value={current || "all"} onValueChange={value => column.setFilterValue(value === "all" ? undefined : value)}>
+              <SelectTrigger aria-label={`Filter ${label}`}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All values</SelectItem>
+                {options.map(option => <SelectItem key={option} value={option}>{titleCase(option)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              autoFocus
+              inputMode={isNumeric ? "numeric" : "search"}
+              min={isNumeric ? 0 : undefined}
+              type={isNumeric ? "number" : "search"}
+              value={current}
+              onChange={event => column.setFilterValue(event.target.value || undefined)}
+              placeholder={prompt}
+              aria-label={prompt}
+            />
+          )}
+          <Button variant="ghost" size="sm" disabled={!column.getIsFiltered()} onClick={() => column.setFilterValue(undefined)}>Clear</Button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function DetailSection({ title, children }: { title: string; children: ReactNode }) {
   return <section className="detail-section"><h3>{title}</h3>{children}</section>;
+}
+
+function AvailabilityDetails({ model }: { model: CatalogModel }) {
+  const entries = Object.entries(model.availability);
+  if (!entries.length) return <p className="muted">No availability published.</p>;
+  return <ul className="metric-list">{entries.map(([cloud, availability]) => (
+    <li key={cloud}>
+      <strong>{cloud.toUpperCase()}</strong> · {titleCase(availability.status)}
+      {availability.serving_modes.length ? ` · ${availability.serving_modes.map(titleCase).join(", ")}` : ""}
+      {availability.details ? <span className="metric-detail">{availability.details}</span> : null}
+    </li>
+  ))}</ul>;
+}
+
+function PriceDetails({ model }: { model: CatalogModel }) {
+  const prices = Object.entries(model.average_price);
+  if (!prices.length) return <p className="muted">No normalized price published.</p>;
+  return <ul className="metric-list">{prices.map(([currency, price]) => (
+    <li key={currency}>
+      <strong>{currency}</strong> · {titleCase(price.unit)} · {Object.entries(price.rates).map(([name, value]) => `${titleCase(name)} ${value}`).join(", ")}
+    </li>
+  ))}</ul>;
 }
 
 function ModelDetails({ model }: { model: CatalogRow }) {
@@ -282,18 +411,30 @@ function ModelDetails({ model }: { model: CatalogRow }) {
           ["Type", titleCase(model.type)],
           ["Publisher", <PublisherMark publisher={model.publisher} />],
           ["Family", model.family ?? "—"],
+          ["License", model.license ?? "—"],
+          ["Open weights", model.open_weights == null ? "—" : model.open_weights ? "Yes" : "No"],
           ["Context", model.limits?.context ? `${formatNumber(model.limits.context)} tokens` : "—"],
+          ["Input limit", model.limits?.input ? `${formatNumber(model.limits.input)} tokens` : "—"],
+          ["Output limit", model.limits?.output ? `${formatNumber(model.limits.output)} tokens` : "—"],
           ["Released", formatDate(model.release_date)],
           ["Updated", formatDate(model.last_updated)],
+          ["Knowledge cutoff", formatDate(model.knowledge_cutoff)],
         ] satisfies Array<[string, ReactNode]>).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       </dl>
       <div className="detail-columns">
         <DetailSection title="Capabilities"><Chips values={activeCapabilities(model)} limit={8} /></DetailSection>
-        <DetailSection title="Cloud availability"><Chips values={activeClouds(model).map(cloud => cloud.toUpperCase())} /></DetailSection>
+        <DetailSection title="Cloud availability"><AvailabilityDetails model={model} /></DetailSection>
         <DetailSection title="Input modalities"><Chips values={model.modalities.input} /></DetailSection>
         <DetailSection title="Output modalities"><Chips values={model.modalities.output} /></DetailSection>
         <DetailSection title="Tasks"><Chips values={model.tasks} limit={8} /></DetailSection>
         <DetailSection title="Use cases"><Chips values={model.use_cases} limit={8} /></DetailSection>
+        <DetailSection title="Average price"><PriceDetails model={model} /></DetailSection>
+        <DetailSection title="Retirement">
+          {model.retirement ? <ul className="metric-list">
+            {model.retirement.schedules.map(schedule => <li key={schedule.offering}><strong>{schedule.offering}</strong> · {schedule.dates.map(formatDate).join(", ")}</li>)}
+            {(model.retirement.replacement || model.retirement.replacement_name) && <li><strong>Replacement</strong> · {model.retirement.replacement ?? model.retirement.replacement_name}</li>}
+          </ul> : <p className="muted">No retirement scheduled.</p>}
+        </DetailSection>
         <DetailSection title="Rankings">
           {rankings.length ? <ul className="metric-list">{rankings.map(ranking => (
             <li key={`${ranking.domain}-${ranking.category}-${ranking.rank}`}>
@@ -309,6 +450,11 @@ function ModelDetails({ model }: { model: CatalogRow }) {
           ))}</ul> : <p className="muted">No benchmarks published.</p>}
         </DetailSection>
         <DetailSection title="Aliases"><Chips values={model.aliases} limit={12} /></DetailSection>
+        <DetailSection title="Notices">
+          {model.notices.length ? <ul className="metric-list">{model.notices.map((notice, index) => (
+            <li key={`${notice.kind}-${index}`}><strong>{notice.title ?? titleCase(notice.kind)}</strong><span className="metric-detail">{notice.text}</span></li>
+          ))}</ul> : <p className="muted">No notices published.</p>}
+        </DetailSection>
       </div>
     </>
   );
@@ -324,6 +470,7 @@ function App() {
   const [capability, setCapability] = useState("all");
   const [weights, setWeights] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "model", desc: false }]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(defaultColumnVisibility);
   const [selected, setSelected] = useState<CatalogRow | null>(null);
 
@@ -365,6 +512,7 @@ function App() {
       id: "model",
       accessorFn: row => row.name,
       enableHiding: false,
+      filterFn: (row, _columnId, value) => `${row.original.name} ${row.original.id}`.toLocaleLowerCase().includes(String(value).trim().toLocaleLowerCase()),
       header: "Model",
       cell: ({ row }) => (
         <button className="model-button" type="button" onClick={() => setSelected(row.original)}>
@@ -373,32 +521,42 @@ function App() {
         </button>
       ),
     },
-    { id: "status", accessorKey: "status", header: "Status", cell: info => <span className={`status status-${info.getValue()}`}>{titleCase(String(info.getValue()))}</span> },
-    { id: "publisher", accessorKey: "publisher", header: "Publisher", cell: ({ row }) => <PublisherMark publisher={row.original.publisher} /> },
-    { id: "family", accessorKey: "family", header: "Family", cell: info => String(info.getValue() ?? "—") },
-    { id: "type", accessorKey: "type", header: "Type", cell: info => titleCase(String(info.getValue())) },
-    { id: "context", accessorFn: row => row.limits?.context, header: "Context", cell: info => formatNumber(info.getValue<number>()) },
-    { id: "inputLimit", accessorFn: row => row.limits?.input, header: "Input limit", cell: info => formatNumber(info.getValue<number>()) },
-    { id: "outputLimit", accessorFn: row => row.limits?.output, header: "Output limit", cell: info => formatNumber(info.getValue<number>()) },
-    { id: "clouds", accessorFn: row => activeClouds(row).length, header: "Clouds", cell: ({ row }) => <Chips values={activeClouds(row.original).map(value => value.toUpperCase())} /> },
-    { id: "capabilities", accessorFn: row => activeCapabilities(row).length, header: "Capabilities", cell: ({ row }) => <Chips values={activeCapabilities(row.original)} limit={3} /> },
-    { id: "rankings", accessorFn: row => bestRanking(row)?.rank, header: "Best ranking", sortUndefined: "last", cell: ({ row }) => { const ranking = bestRanking(row.original); return ranking ? <span><strong>#{ranking.rank}</strong> {ranking.category}</span> : "—"; } },
-    { id: "benchmarks", accessorFn: row => topBenchmark(row)?.rank, header: "Top benchmark", sortUndefined: "last", cell: ({ row }) => { const benchmark = topBenchmark(row.original); return benchmark ? <span><strong>#{benchmark.rank}</strong> {benchmark.name} · {benchmark.score}</span> : "—"; } },
-    { id: "openWeights", accessorFn: row => row.open_weights === true ? 1 : 0, header: "Open weights", cell: ({ row }) => row.original.open_weights == null ? "—" : row.original.open_weights ? "Yes" : "No" },
-    { id: "released", accessorKey: "release_date", header: "Released", sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
-    { id: "updated", accessorKey: "last_updated", header: "Updated", sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
-    { id: "knowledgeCutoff", accessorKey: "knowledge_cutoff", header: "Knowledge cutoff", sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
-    { id: "aliases", accessorFn: row => row.aliases.join(", "), header: "Aliases", cell: ({ row }) => <Chips values={row.original.aliases} /> },
+    { id: "status", accessorKey: "status", header: "Status", filterFn: textFilter, cell: info => <span className={`status status-${info.getValue()}`}>{titleCase(String(info.getValue()))}</span> },
+    { id: "publisher", accessorKey: "publisher", header: "Publisher", filterFn: textFilter, cell: ({ row }) => <PublisherMark publisher={row.original.publisher} /> },
+    { id: "family", accessorKey: "family", header: "Family", filterFn: textFilter, cell: info => String(info.getValue() ?? "—") },
+    { id: "license", accessorKey: "license", header: "License", filterFn: textFilter, cell: info => String(info.getValue() ?? "—") },
+    { id: "type", accessorKey: "type", header: "Type", filterFn: textFilter, cell: info => titleCase(String(info.getValue())) },
+    { id: "context", accessorFn: row => row.limits?.context, header: "Context", filterFn: minimumFilter, cell: info => formatNumber(info.getValue<number>()) },
+    { id: "inputLimit", accessorFn: row => row.limits?.input, header: "Input limit", filterFn: minimumFilter, cell: info => formatNumber(info.getValue<number>()) },
+    { id: "outputLimit", accessorFn: row => row.limits?.output, header: "Output limit", filterFn: minimumFilter, cell: info => formatNumber(info.getValue<number>()) },
+    { id: "clouds", accessorFn: row => activeClouds(row).join(", "), header: "Clouds", filterFn: textFilter, cell: ({ row }) => <Chips values={activeClouds(row.original).map(value => value.toUpperCase())} /> },
+    { id: "servingModes", accessorFn: row => servingModes(row).join(", "), header: "Serving modes", filterFn: textFilter, cell: ({ row }) => <Chips values={servingModes(row.original).map(titleCase)} limit={3} /> },
+    { id: "capabilities", accessorFn: row => activeCapabilities(row).join(", "), header: "Capabilities", filterFn: textFilter, cell: ({ row }) => <Chips values={activeCapabilities(row.original)} limit={3} /> },
+    { id: "inputModalities", accessorFn: row => row.modalities.input.join(", "), header: "Input modalities", filterFn: textFilter, cell: ({ row }) => <Chips values={row.original.modalities.input} /> },
+    { id: "outputModalities", accessorFn: row => row.modalities.output.join(", "), header: "Output modalities", filterFn: textFilter, cell: ({ row }) => <Chips values={row.original.modalities.output} /> },
+    { id: "tasks", accessorFn: row => row.tasks.join(", "), header: "Tasks", filterFn: textFilter, cell: ({ row }) => <Chips values={row.original.tasks} /> },
+    { id: "useCases", accessorFn: row => row.use_cases.join(", "), header: "Use cases", filterFn: textFilter, cell: ({ row }) => <Chips values={row.original.use_cases} /> },
+    { id: "rankings", accessorFn: row => bestRanking(row)?.rank, header: "Best ranking", filterFn: maximumFilter, sortUndefined: "last", cell: ({ row }) => { const ranking = bestRanking(row.original); return ranking ? <span><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)} · {titleCase(ranking.category)}</span> : "—"; } },
+    { id: "benchmarks", accessorFn: row => topBenchmark(row)?.rank, header: "Top benchmark", filterFn: maximumFilter, sortUndefined: "last", cell: ({ row }) => { const benchmark = topBenchmark(row.original); return benchmark ? <span><strong>#{benchmark.rank}</strong> {benchmark.name} · {benchmark.score}</span> : "—"; } },
+    { id: "openWeights", accessorFn: row => row.open_weights == null ? "Unknown" : row.open_weights ? "Yes" : "No", header: "Open weights", filterFn: textFilter, cell: ({ row }) => row.original.open_weights == null ? "—" : row.original.open_weights ? "Yes" : "No" },
+    { id: "released", accessorKey: "release_date", header: "Released", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
+    { id: "updated", accessorKey: "last_updated", header: "Updated", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
+    { id: "knowledgeCutoff", accessorKey: "knowledge_cutoff", header: "Knowledge cutoff", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
+    { id: "aliases", accessorFn: row => row.aliases.join(", "), header: "Aliases", filterFn: textFilter, cell: ({ row }) => <Chips values={row.original.aliases} /> },
   ], []);
 
   const table = useReactTable({
     data: filtered,
     columns,
-    state: { sorting, columnVisibility },
+    state: { sorting, columnFilters, columnVisibility },
     onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
   });
 
   const reset = () => {
@@ -408,6 +566,7 @@ function App() {
     setCloud("all");
     setCapability("all");
     setWeights("all");
+    setColumnFilters([]);
     setSorting([{ id: "model", desc: false }]);
   };
 
@@ -459,7 +618,7 @@ function App() {
           <section className="catalog-card" aria-busy={!catalog && !error} aria-live="polite">
             <div className="table-toolbar">
               <div>
-                <strong>{error ? "Catalog unavailable" : `${filtered.length} ${filtered.length === 1 ? "model" : "models"}`}</strong>
+                <strong>{error ? "Catalog unavailable" : `${table.getFilteredRowModel().rows.length} ${table.getFilteredRowModel().rows.length === 1 ? "model" : "models"}`}</strong>
                 <span>{catalog ? `Updated ${formatDateTime(catalog.updated_at)}` : error ?? "Loading catalog…"}</span>
               </div>
               <div className="table-actions">
@@ -488,10 +647,13 @@ function App() {
                         const sorted = header.column.getIsSorted();
                         return (
                           <TableHead key={header.id} aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"}>
-                            <button type="button" className="sort-button" onClick={header.column.getToggleSortingHandler()}>
-                              {flexRender(header.column.columnDef.header, header.getContext())}
-                              {sorted === "asc" ? <ArrowUp /> : sorted === "desc" ? <ArrowDown /> : <ChevronsUpDown className="sort-idle" />}
-                            </button>
+                            <div className="table-header-control">
+                              <button type="button" className="sort-button" onClick={header.column.getToggleSortingHandler()}>
+                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                {sorted === "asc" ? <ArrowUp /> : sorted === "desc" ? <ArrowDown /> : <ChevronsUpDown className="sort-idle" />}
+                              </button>
+                              <HeaderFilter column={header.column} label={columnLabels[header.column.id] ?? header.column.id} />
+                            </div>
                           </TableHead>
                         );
                       })}
@@ -506,7 +668,7 @@ function App() {
                   ))}
                 </TableBody>
               </Table>
-              {catalog && !filtered.length && <div className="empty-state"><strong>No matching models</strong><span>Clear a filter or broaden the search.</span></div>}
+              {catalog && !table.getRowModel().rows.length && <div className="empty-state"><strong>No matching models</strong><span>Clear a filter or broaden the search.</span></div>}
             </div>
           </section>
         </main>

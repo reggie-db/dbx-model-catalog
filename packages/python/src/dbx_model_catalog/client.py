@@ -83,7 +83,7 @@ class ModelCatalogClient:
         return cls.from_json((decode or decode_catalog_payload)(payload, encoding))
 
     @property
-    def schema_version(self) -> Literal[12]:
+    def schema_version(self) -> int:
         return self.catalog.schema_version
 
     @property

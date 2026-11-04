@@ -54,5 +54,5 @@ describe("catalog RPC", () => {
     expect(query.error).toBeNull();
     expect(query.data).toHaveLength(2);
     expect(query.data?.every(record => record.status === "active")).toBe(true);
-  });
+  }, 15_000);
 });

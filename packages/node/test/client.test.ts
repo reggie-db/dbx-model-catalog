@@ -15,7 +15,7 @@ test("Pynect client loads and reuses the published catalog cache", async () => {
   const cacheDirectory = path.join(temporaryDirectory, "cache");
   const catalogPath = path.join(temporaryDirectory, "catalog.json.br");
   const catalog = {
-    schema_version: 12,
+    schema_version: 14,
     updated_at: "2026-11-03T12:00:00Z",
     models: {
       "databricks-gpt-test": {
@@ -57,7 +57,7 @@ test("Pynect client loads and reuses the published catalog cache", async () => {
       cacheDirectory,
     );
 
-    expect(await first.get_schema_version()).toBe(12);
+    expect(await first.get_schema_version()).toBe(14);
     expect(await first.get_size()).toBe(1);
     expect(await first.get_updated_at()).toStartWith("2026-11-03T12:00:00");
     expect(await first.query(

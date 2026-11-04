@@ -784,7 +784,7 @@ class ModelCatalog(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    schema_version: Literal[12]
+    schema_version: Literal[14]
     """
     Version of the published catalog contract.
     """
