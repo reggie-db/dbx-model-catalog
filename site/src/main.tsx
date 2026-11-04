@@ -150,6 +150,18 @@ function formatDateTime(value: string) {
     : new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
+async function loadCatalog(): Promise<CatalogPayload> {
+  const { data, error } = await createCatalogRpcClient().rpc.catalog.get();
+  if (data) return data;
+
+  if (window.location.hostname.endsWith(".github.io")) {
+    const response = await fetch("catalog.json", { cache: "no-cache" });
+    if (response.ok) return await response.json() as CatalogPayload;
+  }
+
+  throw new Error(`Catalog RPC failed (${error?.status ?? "unknown"})`);
+}
+
 function searchText(id: string, model: CatalogModel) {
   return [
     id,
@@ -279,12 +291,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    createCatalogRpcClient().rpc.catalog.get()
-      .then(({ data, error: rpcError }) => {
-        if (rpcError) throw new Error(`Catalog RPC failed (${rpcError.status})`);
-        if (!data) throw new Error("Catalog RPC returned no data");
-        setCatalog(data);
-      })
+    loadCatalog()
+      .then(setCatalog)
       .catch(cause => setError(cause instanceof Error ? cause.message : "Could not load the catalog."));
   }, []);
 

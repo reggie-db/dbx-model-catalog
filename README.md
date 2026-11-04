@@ -29,7 +29,9 @@ JSON at <https://reggie-db.github.io/dbx-model-catalog/>. The page provides a
 dbx.tools-branded explorer with filters, sortable headers, optional ranking and
 benchmark columns, model details, and direct downloads. It is built with
 `@dbx-tools/ui`, Databricks AppKit UI, and TanStack Table. Raw upstream source
-payloads are not published.
+payloads are not published. The server-backed app uses the typed RPC client;
+the GitHub Pages build falls back to its colocated normalized JSON artifact
+because Pages cannot host the Bun RPC server.
 
 `.github/workflows/refresh-catalog.yml` refreshes the normalized artifacts each
 week and commits changes under `site/`. It restores the Python source and
