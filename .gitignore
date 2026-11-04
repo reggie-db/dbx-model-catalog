@@ -58,6 +58,7 @@ dist-node/
 *.tsbuildinfo
 packages/node/dist-package/
 packages/node/py/
+site/dist/
 
 # ---- Databricks ----------------------------------------------------------
 .databricks/

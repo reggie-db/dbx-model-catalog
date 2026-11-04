@@ -10,7 +10,7 @@ Python-first model catalog monorepo with a generated Node and Bun client.
 - `packages/node` publishes `@regbo/dbx-model-catalog`. Pynect generates its
   TypeScript bridge from the Python package.
 
-Node client generation uses Pynect `^0.8.2` from npm. Pynect supplies compatible
+Node client generation uses Pynect `^0.8.4` from npm. Pynect supplies compatible
 Pyfig, Loqkit, and Optionkit dependencies through npm; the workspace has no
 GitHub links or vendored tarballs for those packages. The generated npm package
 bundles that runtime. Its runtime defaults uv and Python provisioning to
@@ -24,13 +24,16 @@ contract and generates the Pydantic models during builds.
 
 The normalized Databricks catalog is published as JSON and Brotli-compressed
 JSON at <https://reggie-db.github.io/dbx-model-catalog/>. The page provides a
-searchable dataset explorer and direct downloads. Raw upstream source payloads
-are not published.
+dbx.tools-branded explorer with filters, sortable headers, optional ranking and
+benchmark columns, model details, and direct downloads. It is built with
+`@dbx-tools/ui`, Databricks AppKit UI, and TanStack Table. Raw upstream source
+payloads are not published.
 
 `.github/workflows/refresh-catalog.yml` refreshes the normalized artifacts each
 week and commits changes under `site/`. It restores the Python source and
 normalization cache between runs. `.github/workflows/pages.yml` deploys that
-directory through GitHub Pages whenever the site or catalog changes.
+directory through GitHub Pages whenever the site or catalog changes. The Pages
+workflow builds the React explorer and publishes only `site/dist`.
 
 ## Development
 
@@ -50,6 +53,7 @@ hatch run node-build
 hatch run build
 bun run catalog:publish
 bun run sync --format
+bun run site:check
 ```
 
 The Node package also publishes a `dbx-model-catalog` CLI. Its parser is an

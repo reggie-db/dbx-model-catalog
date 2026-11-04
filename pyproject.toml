@@ -38,6 +38,7 @@ check = [
   "hatch run test",
   "hatch run node-test",
   "hatch run node-build",
+  "bun run site:check",
 ]
 
 [tool.hatch.envs.publish]

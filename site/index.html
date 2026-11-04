@@ -3,128 +3,13 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Explore the normalized Databricks model catalog.">
-    <title>Databricks Model Catalog</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.css">
+    <meta name="description" content="Search, rank, and compare the normalized Databricks model catalog.">
+    <title>dbx.tools Model Catalog</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./src/styles.css">
   </head>
   <body>
-    <header class="page-header">
-      <div>
-        <p class="eyebrow">Published dataset</p>
-        <h1>Databricks Model Catalog</h1>
-        <p class="subtitle">Normalized model capabilities, lifecycle, limits, and cloud availability.</p>
-      </div>
-      <div class="header-meta">
-        <span id="updated-at" class="updated-at">Loading catalog…</span>
-        <a href="catalog.json" download>JSON</a>
-        <a href="catalog.json.br" download>Brotli</a>
-      </div>
-    </header>
-
-    <main>
-      <section class="summary" aria-label="Catalog summary">
-        <div><span id="total-models" class="summary-value">—</span><span class="summary-label">Models</span></div>
-        <div><span id="active-models" class="summary-value">—</span><span class="summary-label">Active</span></div>
-        <div><span id="open-models" class="summary-value">—</span><span class="summary-label">Open weights</span></div>
-        <div><span id="cloud-models" class="summary-value">—</span><span class="summary-label">Multi-cloud</span></div>
-      </section>
-
-      <section class="controls" aria-label="Catalog filters">
-        <label class="search-field">
-          <span>Search</span>
-          <input id="search" type="search" placeholder="Name, ID, publisher, task…" autocomplete="off">
-        </label>
-        <label>
-          <span>Status</span>
-          <select id="status"><option value="">All statuses</option></select>
-        </label>
-        <label>
-          <span>Type</span>
-          <select id="type"><option value="">All types</option></select>
-        </label>
-        <label>
-          <span>Cloud</span>
-          <select id="cloud">
-            <option value="">All clouds</option>
-            <option value="aws">AWS</option>
-            <option value="azure">Azure</option>
-            <option value="gcp">GCP</option>
-          </select>
-        </label>
-        <label>
-          <span>Capability</span>
-          <select id="capability">
-            <option value="">All capabilities</option>
-            <option value="tools">Tools</option>
-            <option value="reasoning">Reasoning</option>
-            <option value="structured_output">Structured output</option>
-            <option value="web_search">Web search</option>
-            <option value="attachments">Attachments</option>
-          </select>
-        </label>
-        <label>
-          <span>Weights</span>
-          <select id="weights">
-            <option value="">All models</option>
-            <option value="open">Open weights</option>
-            <option value="closed">Closed weights</option>
-          </select>
-        </label>
-        <label>
-          <span>Sort</span>
-          <select id="sort">
-            <option value="name">Name</option>
-            <option value="context">Context window</option>
-            <option value="release">Release date</option>
-            <option value="updated">Last updated</option>
-          </select>
-        </label>
-        <button id="reset" class="secondary-button" type="button">Reset</button>
-      </section>
-
-      <section class="results" aria-live="polite" aria-busy="true">
-        <div class="results-header">
-          <p id="result-count">Loading models…</p>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th>Status</th>
-                <th>Context</th>
-                <th>Clouds</th>
-                <th>Capabilities</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody id="model-rows"></tbody>
-          </table>
-          <div id="empty-state" class="empty-state" hidden>
-            <h2>No matching models</h2>
-            <p>Clear a filter or broaden the search.</p>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <dialog id="model-dialog" aria-labelledby="dialog-title">
-      <div class="dialog-header">
-        <div>
-          <p id="dialog-id" class="model-id"></p>
-          <h2 id="dialog-title"></h2>
-        </div>
-        <button id="close-dialog" class="icon-button" type="button" aria-label="Close model details">×</button>
-      </div>
-      <div id="dialog-content" class="dialog-content"></div>
-    </dialog>
-
-    <footer>
-      <span>Generated from normalized Databricks model records.</span>
-      <a href="https://github.com/reggie-db/dbx-model-catalog">Source repository</a>
-    </footer>
-
-    <script type="module" src="app.js"></script>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

@@ -2,7 +2,7 @@
 
 Generated Node and Bun bridge for the Python `dbx-model-catalog` package.
 
-Client generation uses Pynect `^0.8.2` from npm. Pynect resolves compatible
+Client generation uses Pynect `^0.8.4` from npm. Pynect resolves compatible
 Pyfig, Loqkit, and Optionkit packages through its published dependencies; no
 toolkit package is linked from GitHub or a vendored tarball.
 
