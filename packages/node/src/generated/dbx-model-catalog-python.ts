@@ -2,6 +2,34 @@
 
 import { createVenv, type CreateVenvOptions, type PythonKeywordArguments, type PythonVenv } from 'pynect';
 
+export interface CatalogModelRecord {
+  readonly aliases: ReadonlyArray<string>;
+  readonly availability: ReadonlyMap<"aws" | "azure" | "gcp", Availability>;
+  readonly average_price: ReadonlyMap<"DBU" | "USD", AveragePrice>;
+  readonly benchmarks: ReadonlyArray<Benchmark>;
+  readonly capabilities: Capabilities;
+  readonly description: string;
+  readonly family: unknown;
+  readonly id: string;
+  readonly knowledge_cutoff: unknown;
+  readonly last_updated: unknown;
+  readonly license: unknown;
+  readonly limits: unknown;
+  readonly modalities: Modalities;
+  readonly name: string;
+  readonly notices: ReadonlyArray<Notice>;
+  readonly open_weights: unknown;
+  readonly price: ReadonlyMap<"aws" | "azure" | "gcp", ReadonlyMap<"DBU" | "USD", Price>>;
+  readonly publisher: unknown;
+  readonly rankings: ReadonlyArray<Rankings | Rankings1>;
+  readonly release_date: unknown;
+  readonly retirement: unknown;
+  readonly status: "active" | "preview" | "alpha" | "beta" | "legacy" | "deprecated" | "retired";
+  readonly tasks: ReadonlyArray<string>;
+  readonly type: "chat" | "image" | "video" | "embedding" | "reranking" | "decision" | "transcription" | "speech" | "realtime" | "extraction" | "audio";
+  readonly use_cases: ReadonlyArray<string>;
+}
+
 export interface NodeCatalogSync {
   readonly sync: (raw?: boolean, refresh?: boolean) => Promise<Readonly<Record<string, unknown>>>;
   $release(): Promise<void>;
@@ -10,13 +38,14 @@ export interface NodeCatalogSync {
 }
 
 export interface NodeModelCatalogClient {
-  readonly all: () => Promise<ReadonlyArray<Readonly<Record<string, unknown>>>>;
-  readonly get: (model_id: string) => Promise<Readonly<Record<string, unknown>> | null>;
+  readonly all: () => Promise<ReadonlyArray<CatalogModelRecord>>;
+  readonly get: (model_id: string) => Promise<CatalogModelRecord | null>;
+  readonly get_catalog: () => Promise<ModelCatalog>;
   readonly get_schema_version: () => Promise<number>;
   readonly get_size: () => Promise<number>;
   readonly get_updated_at: () => Promise<string>;
-  readonly list: () => Promise<ReadonlyArray<Readonly<Record<string, unknown>>>>;
-  readonly query: (expression?: Readonly<Record<string, unknown>> | null, options?: Readonly<Record<string, unknown>> | null) => Promise<ReadonlyArray<Readonly<Record<string, unknown>>>>;
+  readonly list: () => Promise<ReadonlyArray<CatalogModelRecord>>;
+  readonly query: (expression?: Readonly<Record<string, unknown>> | null, options?: Readonly<Record<string, unknown>> | null) => Promise<ReadonlyArray<CatalogModelRecord>>;
   $release(): Promise<void>;
   $repr(): Promise<string>;
   $value(): Promise<unknown>;
@@ -27,13 +56,169 @@ export interface ClientModule {
   readonly NodeModelCatalogClient: (catalog?: Readonly<Record<string, unknown>> | null, refresh?: boolean, url?: string, cache_directory?: string | null, cache_ttl?: number) => Promise<NodeModelCatalogClient>;
 }
 
+export interface Availability {
+  readonly details: unknown;
+  readonly serving_modes: ReadonlyArray<"pay_per_token" | "priority_pay_per_token" | "provisioned_throughput" | "batch">;
+  readonly status: "active" | "preview" | "alpha" | "beta" | "legacy" | "deprecated" | "retired";
+}
+
+export interface AveragePrice {
+  readonly rates: Readonly<Record<string, number>>;
+  readonly unit: "per_million_tokens" | "per_hour" | "per_hour_per_50_model_units";
+}
+
+export interface Benchmark {
+  readonly name: string;
+  readonly published_at: unknown;
+  readonly rank: number;
+  readonly score: number;
+  readonly task_count: number;
+  readonly variant: unknown;
+}
+
+export interface Budget {
+  readonly max: unknown;
+  readonly min: unknown;
+}
+
+export interface Capabilities {
+  readonly attachments: unknown;
+  readonly interleaved_reasoning: unknown;
+  readonly reasoning: unknown;
+  readonly structured_output: unknown;
+  readonly temperature: unknown;
+  readonly tools: unknown;
+  readonly web_search: boolean;
+}
+
+export interface CatalogModel {
+  readonly aliases: ReadonlyArray<string>;
+  readonly availability: ReadonlyMap<"aws" | "azure" | "gcp", Availability>;
+  readonly average_price: ReadonlyMap<"DBU" | "USD", AveragePrice>;
+  readonly benchmarks: ReadonlyArray<Benchmark>;
+  readonly capabilities: Capabilities;
+  readonly description: string;
+  readonly family: unknown;
+  readonly knowledge_cutoff: unknown;
+  readonly last_updated: unknown;
+  readonly license: unknown;
+  readonly limits: unknown;
+  readonly modalities: Modalities;
+  readonly name: string;
+  readonly notices: ReadonlyArray<Notice>;
+  readonly open_weights: unknown;
+  readonly price: ReadonlyMap<"aws" | "azure" | "gcp", ReadonlyMap<"DBU" | "USD", Price>>;
+  readonly publisher: unknown;
+  readonly rankings: ReadonlyArray<Rankings | Rankings1>;
+  readonly release_date: unknown;
+  readonly retirement: unknown;
+  readonly status: "active" | "preview" | "alpha" | "beta" | "legacy" | "deprecated" | "retired";
+  readonly tasks: ReadonlyArray<string>;
+  readonly type: "chat" | "image" | "video" | "embedding" | "reranking" | "decision" | "transcription" | "speech" | "realtime" | "extraction" | "audio";
+  readonly use_cases: ReadonlyArray<string>;
+}
+
+export interface Limits {
+  readonly context: unknown;
+  readonly input: unknown;
+  readonly output: unknown;
+}
+
+export interface Modalities {
+  readonly input: ReadonlyArray<"text" | "image" | "audio" | "video" | "application/pdf" | "embedding" | "reranking" | "decision" | string>;
+  readonly output: ReadonlyArray<"text" | "image" | "audio" | "video" | "application/pdf" | "embedding" | "reranking" | "decision" | string>;
+}
+
+export interface ModelCatalog {
+  readonly models: Readonly<Record<string, CatalogModel>>;
+  readonly schema_version: 11;
+  readonly updated_at: string;
+}
+
+export interface Notice {
+  readonly kind: "note" | "important" | "warning" | "tip" | "caution" | "info" | string;
+  readonly text: string;
+  readonly title: unknown;
+}
+
+export interface Price {
+  readonly rates: Readonly<Record<string, number>>;
+  readonly unit: "per_million_tokens" | "per_hour" | "per_hour_per_50_model_units";
+}
+
+export interface Rankings {
+  readonly category: string;
+  readonly domain: string;
+  readonly lower: number;
+  readonly metric: "rating";
+  readonly published_at: unknown;
+  readonly rank: number;
+  readonly rating: number;
+  readonly upper: number;
+  readonly variance: number;
+  readonly variant: unknown;
+  readonly votes: number;
+}
+
+export interface Rankings1 {
+  readonly category: string;
+  readonly domain: string;
+  readonly lower: number;
+  readonly metric: "score";
+  readonly observations: number;
+  readonly published_at: unknown;
+  readonly rank: number;
+  readonly score: number;
+  readonly sessions: number | null;
+  readonly upper: number;
+  readonly variant: unknown;
+}
+
+export interface Reasoning {
+  readonly supported: false;
+}
+
+export interface Reasoning1 {
+  readonly budget: unknown;
+  readonly default_effort: unknown;
+  readonly description: unknown;
+  readonly effort: unknown;
+  readonly supported: true;
+  readonly toggle: unknown;
+}
+
+export interface Retirement {
+  readonly replacement: unknown;
+  readonly replacement_name: unknown;
+  readonly schedules: ReadonlyArray<Schedule>;
+}
+
+export interface Schedule {
+  readonly dates: ReadonlyArray<string>;
+  readonly offering: string;
+}
+
+export interface Variant {
+  readonly context: unknown;
+  readonly harness: unknown;
+  readonly reasoning: unknown;
+  readonly reasoning_effort: unknown;
+  readonly reasoning_mode: unknown;
+}
+
+export interface TypesModule {
+  readonly [name: string]: unknown;
+}
+
 export interface DbxModelCatalogPythonModules {
   readonly client: ClientModule;
+  readonly types: TypesModule;
 }
 
 const defaults = {
     "modules": {
-      "client": "dbx_model_catalog.node"
+      "client": "dbx_model_catalog.node",
+      "types": "dbx_model_catalog._generated.node_types"
     },
     "autoClose": false,
     "project": false,
@@ -56,6 +241,10 @@ export class DbxModelCatalogPython implements AsyncDisposable {
 
   get client(): Promise<ClientModule> {
     return this.venv.import("client");
+  }
+
+  get types(): Promise<TypesModule> {
+    return this.venv.import("types");
   }
 
   close(): Promise<void> {

@@ -52,6 +52,7 @@ const result = await Bun.build({
   entrypoints: [
     resolve(packageRoot, "src/cli.ts"),
     resolve(packageRoot, "src/index.ts"),
+    resolve(packageRoot, "src/server.ts"),
   ],
   external: ["fs-ext"],
   format: "esm",
@@ -65,6 +66,20 @@ const result = await Bun.build({
 
 if (!result.success) {
   for (const log of result.logs) console.error(log);
+  process.exit(1);
+}
+
+const rpcResult = await Bun.build({
+  entrypoints: [resolve(packageRoot, "src/rpc.ts")],
+  format: "esm",
+  minify: false,
+  outdir: dist,
+  sourcemap: "external",
+  target: "browser",
+});
+
+if (!rpcResult.success) {
+  for (const log of rpcResult.logs) console.error(log);
   process.exit(1);
 }
 

@@ -1,6 +1,7 @@
 # dbx-model-catalog
 
-Python-first model catalog monorepo with a generated Node and Bun client.
+Python-first model catalog monorepo with a generated Node and Bun client plus a
+shared, strongly typed RPC server for the web explorer and local callers.
 
 ## Packages
 
@@ -8,7 +9,8 @@ Python-first model catalog monorepo with a generated Node and Bun client.
   query DSL, source synchronization, catalog normalization, JSON Schema, and
   Hatch build hook.
 - `packages/node` publishes `@regbo/dbx-model-catalog`. Pynect generates its
-  TypeScript bridge from the Python package.
+  TypeScript bridge from the Python package, and Elysia/Eden expose the same
+  catalog contract to browsers and local Node or Bun callers.
 
 Node client generation uses Pynect `^0.8.4` from npm. Pynect supplies compatible
 Pyfig, Loqkit, and Optionkit dependencies through npm; the workspace has no
@@ -54,6 +56,7 @@ hatch run build
 bun run catalog:publish
 bun run sync --format
 bun run site:check
+bun run site:serve
 ```
 
 The Node package also publishes a `dbx-model-catalog` CLI. Its parser is an
@@ -81,6 +84,19 @@ persistence under the system temporary directory. Warm `lookup` and normalized
 `sync` commands reuse that catalog without fetching or parsing sources. Pass
 `--refresh` to evict and rebuild it immediately, refresh the source caches, and
 replace the normalized cache.
+
+`bun run site:serve` builds the explorer and starts the Bun server. The server
+loads the committed normalized catalog once, passes it to the generated Pynect
+Python client, and serves both the site and the typed RPC routes:
+
+- `GET /rpc/health`
+- `GET /rpc/catalog`
+- `GET /rpc/models/:id`
+- `POST /rpc/query`
+
+The RPC contract is derived from the catalog JSON Schema and Python annotations
+rather than maintained separately in the site. The generated schema types,
+Pynect bridge, Elysia server, and Eden client therefore share one model shape.
 
 Hugging Face-backed sources use `HF_TOKEN` from the process environment. When
 it is unset, the sync client walks upward from the current directory to the
@@ -175,3 +191,22 @@ This is the runtime route:
 Neither `uv` nor Python must already be installed for a normal published Node
 client invocation. In a development checkout, pass `project: "../python"` and
 `with: []` to use the local Hatch package instead.
+
+The same strongly typed Eden client used by the browser is exported for local
+Node and Bun callers:
+
+```ts
+import { createCatalogRpcClient } from "@regbo/dbx-model-catalog/rpc";
+
+const api = createCatalogRpcClient("http://127.0.0.1:8000");
+const result = await api.rpc.query.post({
+  expression: { status: { $eq: "active" } },
+  options: { orderBy: "name", limit: 10 },
+});
+
+if (result.error) throw result.error;
+console.log(result.data);
+```
+
+In a browser, omit the URL to use `window.location.origin`. Local Node and Bun
+callers default to `http://127.0.0.1:8000` and can pass any deployed origin.

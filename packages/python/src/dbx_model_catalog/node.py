@@ -2,17 +2,22 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import fields
-from typing import Any
+from typing import Any, TypedDict
 
 from .client import (
     PUBLISHED_CATALOG_CACHE_TTL,
     PUBLISHED_CATALOG_URL,
     ModelCatalogClient,
 )
+from ._generated.node_types import CatalogModel, ModelCatalog
 from .sync import CatalogSync, CatalogSyncSources
 
 JsonObject = dict[str, Any]
 JsonQuery = Mapping[str, Any]
+
+
+class CatalogModelRecord(CatalogModel, TypedDict):
+    id: str
 
 
 class NodeModelCatalogClient:
@@ -52,21 +57,24 @@ class NodeModelCatalogClient:
     def get_updated_at(self) -> str:
         return self._client.updated_at.isoformat()
 
-    def get(self, model_id: str) -> JsonObject | None:
+    def get_catalog(self) -> ModelCatalog:
+        return self._client.catalog.model_dump(mode="json", by_alias=True)
+
+    def get(self, model_id: str) -> CatalogModelRecord | None:
         model = self._client.get(model_id)
         return None if model is None else model.model_dump(mode="json")
 
-    def list(self) -> list[JsonObject]:
+    def list(self) -> list[CatalogModelRecord]:
         return [model.model_dump(mode="json") for model in self._client.list()]
 
-    def all(self) -> list[JsonObject]:
+    def all(self) -> list[CatalogModelRecord]:
         return self.list()
 
     def query(
         self,
         expression: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
-    ) -> list[JsonObject]:
+    ) -> list[CatalogModelRecord]:
         return [
             model.model_dump(mode="json")
             for model in self._client.query(expression, options)
@@ -96,6 +104,7 @@ def _camel_case(value: str) -> str:
 
 
 __all__ = [
+    "CatalogModelRecord",
     "JsonObject",
     "JsonQuery",
     "NodeCatalogSync",

@@ -48,67 +48,29 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import {
+  createCatalogRpcClient,
+  type CatalogModel,
+  type ModelCatalog as CatalogPayload,
+} from "../../packages/node/src/rpc.ts";
 
 type Cloud = "aws" | "azure" | "gcp";
-
-interface Ranking {
-  category: string;
-  domain: string;
-  metric: "rating" | "score";
-  rank: number;
-  rating?: number;
-  score?: number;
-}
-
-interface Benchmark {
-  name: string;
-  rank: number;
-  score: number;
-  task_count: number;
-}
-
-interface CatalogModel {
-  aliases: string[];
-  availability: Partial<Record<Cloud, { status: string; serving_modes: string[] }>>;
-  benchmarks: Benchmark[];
-  capabilities: Record<string, boolean | null | { supported?: boolean }>;
-  description: string;
-  family: string | null;
-  knowledge_cutoff: string | null;
-  last_updated: string | null;
-  license: string | null;
-  limits: { context?: number; input?: number; output?: number } | null;
-  modalities: { input: string[]; output: string[] };
-  name: string;
-  notices: Array<{ kind: string; title: string | null; text: string }>;
-  open_weights: boolean | null;
-  publisher: string | null;
-  rankings: Ranking[];
-  release_date: string | null;
-  status: string;
-  tasks: string[];
-  type: string;
-  use_cases: string[];
-}
-
-interface CatalogPayload {
-  models: Record<string, CatalogModel>;
-  schema_version: number;
-  updated_at: string;
-}
+type Ranking = CatalogModel["rankings"][number];
+type Benchmark = CatalogModel["benchmarks"][number];
 
 interface CatalogRow extends CatalogModel {
   id: string;
   searchText: string;
 }
 
-const capabilityLabels: Record<string, string> = {
+const capabilityLabels = {
   attachments: "Attachments",
   reasoning: "Reasoning",
   structured_output: "Structured output",
   tools: "Tools",
   web_search: "Web search",
-};
+} as const;
+type CapabilityName = keyof typeof capabilityLabels;
 
 const columnLabels: Record<string, string> = {
   aliases: "Aliases",
@@ -143,12 +105,12 @@ const defaultColumnVisibility: VisibilityState = {
 };
 
 function activeCapabilities(model: CatalogModel) {
-  return Object.entries(capabilityLabels)
-    .filter(([name]) => {
+  return (Object.keys(capabilityLabels) as CapabilityName[])
+    .filter(name => {
       const value = model.capabilities?.[name];
       return name === "reasoning" ? typeof value === "object" && value?.supported : value === true;
     })
-    .map(([, label]) => label);
+    .map(name => capabilityLabels[name]);
 }
 
 function activeClouds(model: CatalogModel) {
@@ -317,12 +279,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-    fetch("catalog.json", { cache: "no-cache" })
-      .then(response => {
-        if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
-        return response.json() as Promise<CatalogPayload>;
+    createCatalogRpcClient().rpc.catalog.get()
+      .then(({ data, error: rpcError }) => {
+        if (rpcError) throw new Error(`Catalog RPC failed (${rpcError.status})`);
+        if (!data) throw new Error("Catalog RPC returned no data");
+        setCatalog(data);
       })
-      .then(setCatalog)
       .catch(cause => setError(cause instanceof Error ? cause.message : "Could not load the catalog."));
   }, []);
 
@@ -340,7 +302,7 @@ function App() {
       (status === "all" || model.status === status) &&
       (type === "all" || model.type === type) &&
       (cloud === "all" || activeClouds(model).includes(cloud as Cloud)) &&
-      (capability === "all" || activeCapabilities(model).includes(capabilityLabels[capability])) &&
+      (capability === "all" || activeCapabilities(model).includes(capabilityLabels[capability as CapabilityName])) &&
       (weights === "all" || (weights === "open" ? model.open_weights === true : model.open_weights !== true)),
     );
   }, [capability, cloud, models, search, status, type, weights]);

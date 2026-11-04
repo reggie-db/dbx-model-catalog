@@ -237,8 +237,8 @@ export async function main(argv: string[] = process.argv): Promise<void> {
       const catalogModule = await python.client;
       const catalogSync = await catalogModule.NodeCatalogSync();
       const catalog = await catalogSync.sync(false, input.refresh);
-      const catalogClient = await catalogModule.NodeModelCatalogClient(catalog);
-      return [...await catalogClient.query(query.expression, query.options)];
+      const catalogClient = await catalogModule.NodeModelCatalogClient(catalog as never);
+      return [...await catalogClient.query(query.expression, query.options)] as unknown as JsonObject[];
     });
 
   const program = f.program({

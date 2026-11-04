@@ -23,6 +23,7 @@
     "node:pack": "bun run --cwd packages/node pack",
     "site:build": "bun scripts/build-site.ts",
     "site:check": "bun run site:typecheck && bun run site:build",
+    "site:serve": "bun run --cwd packages/node serve",
     "site:typecheck": "bunx tsc --noEmit -p site/tsconfig.json"
   },
   "devDependencies": {

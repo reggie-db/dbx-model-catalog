@@ -20,6 +20,13 @@ OUTPUT_PATH = (
     / "_generated"
     / "models.py"
 )
+NODE_TYPES_OUTPUT_PATH = (
+    PACKAGE_ROOT
+    / "src"
+    / "dbx_model_catalog"
+    / "_generated"
+    / "node_types.py"
+)
 
 
 def main() -> None:
@@ -43,6 +50,32 @@ def main() -> None:
             "--use-standard-collections",
             "--use-schema-description",
             "--use-field-description",
+            "--formatters",
+            "builtin",
+            "--disable-timestamp",
+        ],
+        cwd=PACKAGE_ROOT,
+        check=True,
+    )
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "datamodel_code_generator",
+            "--input",
+            str(SCHEMA_PATH),
+            "--input-file-type",
+            "jsonschema",
+            "--output",
+            str(NODE_TYPES_OUTPUT_PATH),
+            "--output-model-type",
+            "typing.TypedDict",
+            "--target-python-version",
+            "3.12",
+            "--use-union-operator",
+            "--use-standard-collections",
+            "--use-schema-description",
+            "--no-use-closed-typed-dict",
             "--formatters",
             "builtin",
             "--disable-timestamp",

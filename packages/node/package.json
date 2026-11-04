@@ -17,6 +17,14 @@
     "./cli": {
       "types": "./dist/cli.d.ts",
       "import": "./dist/cli.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "import": "./dist/rpc.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
     }
   },
   "files": [
@@ -30,12 +38,17 @@
     "build": "bun run generate && bun run bundle",
     "pack": "bun run build && bun pm pack --destination dist-package",
     "prepublishOnly": "bun run build",
+    "serve": "bun ../../scripts/build-site.ts && bun src/server.ts",
     "test": "bun test"
   },
   "devDependencies": {
     "@antfu/install-pkg": "^2.1.0",
+    "@elysiajs/eden": "^1.4.9",
+    "@types/bun": "^1.4.4",
     "@types/node": "^24.10.0",
+    "elysia": "^1.4.30",
     "fireargs": "^0.6.2",
+    "json-schema-to-typescript": "^16.0.0",
     "pynect": "^0.8.4",
     "typescript": "^5.9.3",
     "zod": "^4.6.7"

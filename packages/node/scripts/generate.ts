@@ -1,11 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { compileFromFile } from "json-schema-to-typescript";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pythonRoot = resolve(packageRoot, "../python");
 const pythonSource = resolve(pythonRoot, "src");
+const schema = resolve(pythonSource, "dbx_model_catalog/schema/model-catalog.schema.json");
 const pynect = resolve(
   packageRoot,
   "node_modules/.bin",
@@ -19,6 +21,13 @@ const { VIRTUAL_ENV: _virtualEnvironment, ...environment } = process.env;
 if (!version) throw new Error("Could not determine Python package version");
 
 const output = resolve(packageRoot, "src/generated/dbx-model-catalog-python.ts");
+const catalogTypesOutput = resolve(packageRoot, "src/generated/catalog-types.ts");
+writeFileSync(
+  catalogTypesOutput,
+  await compileFromFile(schema, {
+    bannerComment: "// Generated from model-catalog.schema.json. Do not edit by hand.",
+  }),
+);
 const sitePackages = spawnSync(
   "uv",
   [
@@ -53,6 +62,8 @@ const result = spawnSync(
     pythonSource,
     "--module",
     "client=dbx_model_catalog.node",
+    "--module",
+    "types=dbx_model_catalog._generated.node_types",
     "--class-name",
     "DbxModelCatalogPython",
     "--no-project",
