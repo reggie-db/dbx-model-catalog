@@ -7,7 +7,7 @@ export interface ModelCatalog {
   /**
    * Version of the published catalog contract.
    */
-  schema_version: 11;
+  schema_version: 12;
   /**
    * Latest source-fetch timestamp represented by the catalog.
    */

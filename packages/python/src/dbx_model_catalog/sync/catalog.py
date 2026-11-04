@@ -31,7 +31,39 @@ from .models import (
     SyncResult,
 )
 
-MODEL_CATALOG_SCHEMA_VERSION = 11
+MODEL_CATALOG_SCHEMA_VERSION = 12
+
+PUBLISHER_NAME_PREFIXES = (
+    ("openai ", "OpenAI"),
+    ("anthropic ", "Anthropic"),
+    ("google ", "Google"),
+    ("meta ", "Meta"),
+    ("alibaba cloud ", "Alibaba Cloud"),
+    ("xai ", "xAI"),
+    ("zhipu ai ", "Zhipu AI"),
+    ("moonshot ai ", "Moonshot AI"),
+    ("deepseek ", "DeepSeek"),
+    ("typesafe ai ", "TypeSafe AI"),
+    ("openjev ", "OpenJev"),
+    ("gte ", "Alibaba Cloud"),
+    ("bge ", "BAAI"),
+)
+
+PUBLISHER_NAMESPACES = {
+    "alibaba": "Alibaba Cloud",
+    "anthropic": "Anthropic",
+    "deepseek": "DeepSeek",
+    "deepseek-ai": "DeepSeek",
+    "google": "Google",
+    "meta": "Meta",
+    "meta-llama": "Meta",
+    "moonshotai": "Moonshot AI",
+    "openai": "OpenAI",
+    "qwen": "Alibaba Cloud",
+    "xai": "xAI",
+    "z-ai": "Zhipu AI",
+    "zhipuai": "Zhipu AI",
+}
 
 
 @dataclass(frozen=True)
@@ -184,7 +216,7 @@ def _catalog_model(
     documented: DatabricksSupportedModel,
     match: tuple[ModelsDevProvider, ModelsDevModel] | None,
 ) -> dict[str, Any]:
-    provider, source = match if match else (None, None)
+    _, source = match if match else (None, None)
     aliases = [value for value in (documented.service_name, source.canonical_model_id if source else None, source.id if source else None) if value and value != model_id]
     model_type = (source.type if source else None) or "chat"
     status = "deprecated" if documented.deprecated else _status(documented.status or (source.status if source else None))
@@ -218,7 +250,8 @@ def _catalog_model(
         "description": documented.description or (source.description if source else documented.name),
         "aliases": list(dict.fromkeys(aliases)),
         "type": model_type if model_type in {"chat", "image", "video", "embedding", "reranking", "decision", "transcription", "speech", "realtime", "extraction", "audio"} else "chat",
-        "publisher": documented.publisher or (provider.name if provider else None),
+        "family": source.family if source and source.family else _model_family(documented),
+        "publisher": _model_publisher(documented, source),
         "open_weights": source.open_weights if source else None,
         "status": status,
         "release_date": source.release_date.date() if source else None,
@@ -237,6 +270,43 @@ def _catalog_model(
         "benchmarks": [],
     }
     return {key: value for key, value in model.items() if value is not None}
+
+
+def _model_publisher(
+    documented: DatabricksSupportedModel,
+    source: ModelsDevModel | None,
+) -> str | None:
+    if documented.publisher:
+        return documented.publisher
+
+    name = documented.name.replace("\u200b", "").strip().casefold()
+    for prefix, publisher in PUBLISHER_NAME_PREFIXES:
+        if name.startswith(prefix):
+            return publisher
+
+    identities = (
+        source.canonical_model_id if source else None,
+        source.id if source else None,
+        documented.service_name,
+        documented.endpoint_name,
+    )
+    for identity in identities:
+        if not identity or "/" not in identity:
+            continue
+        namespace = identity.split("/", 1)[0].casefold()
+        if publisher := PUBLISHER_NAMESPACES.get(namespace):
+            return publisher
+    return None
+
+
+def _model_family(documented: DatabricksSupportedModel) -> str | None:
+    identity = normalize_model_identity(
+        documented.service_name or documented.endpoint_name or documented.name
+    )
+    for family in ("bge", "gte", "jev"):
+        if family in identity:
+            return family
+    return None
 
 
 def _add_availability(model: dict[str, Any], cloud: str, documented: DatabricksSupportedModel) -> None:

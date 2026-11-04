@@ -53,6 +53,9 @@ td { max-width: 360px; vertical-align: top; }
 .model-button > span { font-weight: 650; }
 .model-button:hover > span { color: var(--primary); }
 .model-button code, .model-id { color: var(--muted-foreground); font-family: var(--brand-font-mono); font-size: 0.72rem; }
+.publisher-mark { display: inline-flex; align-items: center; gap: 8px; min-width: 132px; font-size: 0.82rem; font-weight: 600; }
+.publisher-logo { flex: 0 0 auto; color: var(--foreground); }
+.publisher-fallback { display: inline-grid; width: 18px; height: 18px; place-items: center; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 5px; background: var(--muted); font-size: 0.66rem; font-weight: 750; }
 .chip-list { flex-wrap: wrap; gap: 5px; min-width: 170px; }
 .chip-list [data-slot="badge"] { font-size: 0.68rem; font-weight: 600; }
 .more-count, .muted { color: var(--muted-foreground); }

@@ -28,7 +28,9 @@ The normalized Databricks catalog is published as JSON and Brotli-compressed
 JSON at <https://reggie-db.github.io/dbx-model-catalog/>. The page provides a
 dbx.tools-branded explorer with filters, sortable headers, optional ranking and
 benchmark columns, model details, and direct downloads. It is built with
-`@dbx-tools/ui`, Databricks AppKit UI, and TanStack Table. Raw upstream source
+`@dbx-tools/ui`, Databricks AppKit UI, TanStack Table, and LobeHub publisher
+logos. Publisher values identify the model creator or lab, never an inference
+gateway or reseller discovered in an upstream source. Raw upstream source
 payloads are not published. The server-backed app uses the typed RPC client;
 the GitHub Pages build falls back to its colocated normalized JSON artifact
 because Pages cannot host the Bun RPC server.

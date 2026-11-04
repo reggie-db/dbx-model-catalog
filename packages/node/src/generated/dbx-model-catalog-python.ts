@@ -131,7 +131,7 @@ export interface Modalities {
 
 export interface ModelCatalog {
   readonly models: Readonly<Record<string, CatalogModel>>;
-  readonly schema_version: 11;
+  readonly schema_version: 12;
   readonly updated_at: string;
 }
 

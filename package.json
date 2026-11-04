@@ -29,6 +29,7 @@
   "devDependencies": {
     "@databricks/appkit-ui": "0.81.0",
     "@dbx-tools/ui": "^0.9.196",
+    "@lobehub/icons": "^6.13.0",
     "@tanstack/react-table": "^8.21.3",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",

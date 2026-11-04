@@ -4,7 +4,7 @@
   "properties": {
     "schema_version": {
       "type": "number",
-      "const": 11,
+      "const": 12,
       "description": "Version of the published catalog contract."
     },
     "updated_at": {

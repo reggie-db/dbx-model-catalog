@@ -27,6 +27,17 @@ import {
   TableRow,
 } from "@databricks/appkit-ui/react";
 import { BrandLogo, BrandProvider } from "@dbx-tools/ui/branding/react";
+import AlibabaCloud from "@lobehub/icons/es/AlibabaCloud";
+import Anthropic from "@lobehub/icons/es/Anthropic";
+import BAAI from "@lobehub/icons/es/BAAI";
+import DeepSeek from "@lobehub/icons/es/DeepSeek";
+import Google from "@lobehub/icons/es/Google";
+import Meta from "@lobehub/icons/es/Meta";
+import Moonshot from "@lobehub/icons/es/Moonshot";
+import OpenAI from "@lobehub/icons/es/OpenAI";
+import TypeSafeAI from "@lobehub/icons/es/TypeSafeAI";
+import XAI from "@lobehub/icons/es/XAI";
+import Zhipu from "@lobehub/icons/es/Zhipu";
 import {
   type ColumnDef,
   type SortingState,
@@ -46,7 +57,7 @@ import {
   RotateCcw,
   Search,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ComponentType, type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   createCatalogRpcClient,
@@ -57,6 +68,11 @@ import {
 type Cloud = "aws" | "azure" | "gcp";
 type Ranking = CatalogModel["rankings"][number];
 type Benchmark = CatalogModel["benchmarks"][number];
+type PublisherIcon = ComponentType<{
+  "aria-hidden"?: boolean;
+  className?: string;
+  size?: number | string;
+}>;
 
 interface CatalogRow extends CatalogModel {
   id: string;
@@ -78,6 +94,7 @@ const columnLabels: Record<string, string> = {
   capabilities: "Capabilities",
   clouds: "Clouds",
   context: "Context",
+  family: "Family",
   inputLimit: "Input limit",
   knowledgeCutoff: "Knowledge cutoff",
   model: "Model",
@@ -98,10 +115,24 @@ const defaultColumnVisibility: VisibilityState = {
   knowledgeCutoff: false,
   openWeights: false,
   outputLimit: false,
-  publisher: false,
   rankings: false,
   released: false,
   type: false,
+  updated: false,
+};
+
+const publisherIcons: Record<string, PublisherIcon> = {
+  "Alibaba Cloud": AlibabaCloud,
+  Anthropic,
+  BAAI,
+  DeepSeek,
+  Google,
+  Meta,
+  "Moonshot AI": Moonshot,
+  OpenAI,
+  "TypeSafe AI": TypeSafeAI,
+  xAI: XAI,
+  "Zhipu AI": Zhipu,
 };
 
 function activeCapabilities(model: CatalogModel) {
@@ -191,6 +222,19 @@ function Chips({ values, limit = 4 }: { values: string[]; limit?: number }) {
   );
 }
 
+function PublisherMark({ publisher }: { publisher: string | null | undefined }) {
+  if (!publisher) return <span className="muted">—</span>;
+  const Icon = publisherIcons[publisher];
+  return (
+    <span className="publisher-mark">
+      {Icon
+        ? <Icon aria-hidden className="publisher-logo" size={18} />
+        : <span aria-hidden className="publisher-fallback">{publisher.at(0)}</span>}
+      <span>{publisher}</span>
+    </span>
+  );
+}
+
 function SelectFilter({
   label,
   value,
@@ -233,14 +277,15 @@ function ModelDetails({ model }: { model: CatalogRow }) {
         <DialogDescription>{model.description || "No description is available."}</DialogDescription>
       </DialogHeader>
       <dl className="detail-grid">
-        {[
+        {([
           ["Status", titleCase(model.status)],
           ["Type", titleCase(model.type)],
-          ["Publisher", model.publisher ?? "Unknown"],
+          ["Publisher", <PublisherMark publisher={model.publisher} />],
+          ["Family", model.family ?? "—"],
           ["Context", model.limits?.context ? `${formatNumber(model.limits.context)} tokens` : "—"],
           ["Released", formatDate(model.release_date)],
           ["Updated", formatDate(model.last_updated)],
-        ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+        ] satisfies Array<[string, ReactNode]>).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       </dl>
       <div className="detail-columns">
         <DetailSection title="Capabilities"><Chips values={activeCapabilities(model)} limit={8} /></DetailSection>
@@ -329,7 +374,8 @@ function App() {
       ),
     },
     { id: "status", accessorKey: "status", header: "Status", cell: info => <span className={`status status-${info.getValue()}`}>{titleCase(String(info.getValue()))}</span> },
-    { id: "publisher", accessorKey: "publisher", header: "Publisher", cell: info => String(info.getValue() ?? "—") },
+    { id: "publisher", accessorKey: "publisher", header: "Publisher", cell: ({ row }) => <PublisherMark publisher={row.original.publisher} /> },
+    { id: "family", accessorKey: "family", header: "Family", cell: info => String(info.getValue() ?? "—") },
     { id: "type", accessorKey: "type", header: "Type", cell: info => titleCase(String(info.getValue())) },
     { id: "context", accessorFn: row => row.limits?.context, header: "Context", cell: info => formatNumber(info.getValue<number>()) },
     { id: "inputLimit", accessorFn: row => row.limits?.input, header: "Input limit", cell: info => formatNumber(info.getValue<number>()) },
@@ -401,7 +447,7 @@ function App() {
           <section className="filters" aria-label="Catalog filters">
             <div className="search-field">
               <Label htmlFor="catalog-search">Search</Label>
-              <div className="search-control"><Search aria-hidden="true" /><Input id="catalog-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, ID, publisher, task…" /></div>
+              <div className="search-control"><Search aria-hidden="true" /><Input id="catalog-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, ID, publisher, family, task…" /></div>
             </div>
             <SelectFilter label="Status" value={status} onValueChange={setStatus} allLabel="All statuses" options={statuses.map(value => ({ label: titleCase(value), value }))} />
             <SelectFilter label="Type" value={type} onValueChange={setType} allLabel="All types" options={types.map(value => ({ label: titleCase(value), value }))} />

@@ -118,7 +118,7 @@ def test_builds_catalog_from_python_sources() -> None:
                 "id": "openai",
                 "env": [],
                 "npm": "@ai-sdk/openai",
-                "name": "OpenAI",
+                "name": "Eden AI",
                 "doc": "https://example.com",
                 "models": {
                     "gpt-test": {
@@ -131,6 +131,7 @@ def test_builds_catalog_from_python_sources() -> None:
                         "structured_output": True,
                         "release_date": "2026-10-01",
                         "last_updated": "2026-10-30",
+                        "family": "gpt",
                         "modalities": {"input": ["text", "pdf"], "output": ["text"]},
                         "open_weights": False,
                         "limit": {"context": 200000, "output": 32000},
@@ -141,7 +142,7 @@ def test_builds_catalog_from_python_sources() -> None:
         }
     )
     page = parse_databricks_supported_models_page(
-        '<h1>Models</h1><h2 id="gpt-test">OpenAI GPT Test</h2><p>Endpoint name: databricks-gpt-test</p><p>Publisher: OpenAI</p>',
+        '<h1>Models</h1><h2 id="gpt-test">OpenAI GPT Test</h2><p>Endpoint name: databricks-gpt-test</p>',
         "https://example.com",
     )
     databricks = DatabricksCatalogData(
@@ -199,6 +200,8 @@ def test_builds_catalog_from_python_sources() -> None:
     }
     assert raw["modelsDev"]["fetchedAt"]
     assert model.aliases == ["openai/gpt-test", "gpt-test"]
+    assert model.family == "gpt"
+    assert model.publisher == "OpenAI"
     assert model.modalities.input == ["text", "application/pdf"]
     assert model.limits.context == 200000
     assert set(model.availability) == {"aws", "azure", "gcp"}

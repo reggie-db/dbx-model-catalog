@@ -86,7 +86,7 @@ def catalog() -> dict[str, object]:
     llama = model("Llama Active", "active", ["chat"])
     llama["limits"] = {"context": 8_192}
     return {
-        "schema_version": 11,
+        "schema_version": 12,
         "updated_at": "2026-10-31T12:00:00.000Z",
         "models": {
             "databricks-gpt-active": active,
@@ -105,7 +105,7 @@ def test_reads_brotli_and_injected_fetch(catalog: dict[str, object]) -> None:
         "https://example.com/catalog.json.br", fetch=lambda _: payload
     )
 
-    assert client.schema_version == 11
+    assert client.schema_version == 12
     assert client.size == 3
     assert client.get("databricks-gpt-active").name == "GPT Active"
     assert fetched.get("databricks-llama").name == "Llama Active"
