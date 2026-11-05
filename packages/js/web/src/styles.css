@@ -98,9 +98,12 @@ td { max-width: 360px; vertical-align: top; }
 .detail-grid > div { padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--muted); }
 .detail-grid dt { color: var(--foreground); font-size: 0.75rem; font-weight: 500; }
 .detail-grid dd { margin: 3px 0 0; font-size: 0.86rem; font-weight: 650; }
+.detail-source-row, .metric-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.detail-source-row > span:first-child, .metric-heading > :first-child { min-width: 0; }
 .detail-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
 .detail-section { min-width: 0; padding-block: 15px; border-top: 1px solid var(--border); }
-.detail-section h3 { display: flex; align-items: center; margin: 0 0 9px; font-size: 0.82rem; }
+.detail-section h3 { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 9px; font-size: 0.82rem; }
+.detail-source-row .source-links, .detail-section h3 .source-links, .metric-heading .source-links { margin-left: auto; flex: 0 0 auto; vertical-align: baseline; }
 .detail-section p { margin: 0; font-size: 0.82rem; }
 .metric-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; font-size: 0.82rem; }
 .metric-detail { display: block; margin-top: 3px; color: var(--muted-foreground); line-height: 1.45; }

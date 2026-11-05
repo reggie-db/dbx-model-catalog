@@ -527,7 +527,10 @@ function ModelDetails({ model }: { model: CatalogRow }) {
           ] satisfies Array<[keyof CatalogModel, string, ReactNode]>).map(([field, label, value]) => (
             <div key={label}>
               <dt>{label}</dt>
-              <dd><SourcedText sources={value === "—" ? [] : fieldSources(model, field)}>{value}</SourcedText></dd>
+              <dd className="detail-source-row">
+                <span>{value}</span>
+                <SourceLinks sources={value === "—" ? [] : fieldSources(model, field)} />
+              </dd>
             </div>
           ))}
         </dl>
@@ -563,7 +566,10 @@ function ModelDetails({ model }: { model: CatalogRow }) {
           <DetailSection title="Notices">
             {model.notices.length ? <ul className="metric-list">{model.notices.map((notice, index) => (
               <li key={`${notice.kind}-${index}`}>
-                <strong><SourcedText sources={notice.sources}>{notice.title ?? titleCase(notice.kind)}</SourcedText></strong>
+                <span className="metric-heading">
+                  <strong>{notice.title ?? titleCase(notice.kind)}</strong>
+                  <SourceLinks sources={notice.sources} />
+                </span>
                 <span className="metric-detail">{notice.text}</span>
               </li>
             ))}</ul> : <p className="muted">No notices published.</p>}
