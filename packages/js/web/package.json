@@ -1,0 +1,12 @@
+{
+  "name": "@regbo/dbx-model-catalog-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "typecheck": "bun run tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@regbo/dbx-model-catalog-common": "workspace:*"
+  }
+}

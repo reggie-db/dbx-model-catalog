@@ -32,6 +32,12 @@ jobs:
           enable-cache: true
           python-version: "3.12"
           version: latest-known
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install Node dependencies
+        run: bun install
       - name: Restore source and normalized catalog cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -44,21 +50,20 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           REFRESH_SOURCES: ${{ github.event_name == 'workflow_dispatch' && inputs.refresh_sources || false }}
         run: |
-          arguments=(--output-directory site)
+          arguments=(--output-directory packages/js/web)
           if [[ "$REFRESH_SOURCES" == "true" ]]; then
             arguments+=(--refresh)
           fi
-          uv run --project packages/python --extra sync \
-            python packages/python/scripts/publish_catalog.py "${arguments[@]}"
+          bun run sync "${arguments[@]}"
       - name: Commit catalog updates
         run: |
-          if git diff --quiet -- site/catalog.json site/catalog.json.br; then
+          if git diff --quiet -- packages/js/web/catalog.json packages/js/web/catalog.json.br; then
             echo "Catalog is unchanged."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add site/catalog.json site/catalog.json.br
+          git add packages/js/web/catalog.json packages/js/web/catalog.json.br
           git commit -m "Refresh published model catalog"
           git pull --rebase
           git push

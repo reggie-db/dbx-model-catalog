@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling>=1.28,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dbx-model-catalog-server"
+version = "0.1.0"
+description = "Chanx server for dbx-model-catalog"
+requires-python = ">=3.12"
+dependencies = [
+  "chanx[fast_channels]>=2.13,<3",
+  "dbx-model-catalog",
+  "fastapi>=0.120,<1",
+  "pynect==0.8.14",
+  "uvicorn[standard]>=0.40,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dbx_model_catalog_server"]
+
+[tool.pynect]
+name = "dbx-model-catalog"
+app = "dbx_model_catalog_server.app:app"
+out = "../../js/common/src/_generated"
+
+[tool.uv.sources]
+dbx-model-catalog = { workspace = true }

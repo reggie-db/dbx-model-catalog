@@ -1,6 +1,8 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/node" }
+    { "path": "./packages/js/node" },
+    { "path": "./packages/js/sync" },
+    { "path": "./packages/js/web" }
   ]
 }

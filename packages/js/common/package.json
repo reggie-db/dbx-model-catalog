@@ -1,0 +1,13 @@
+{
+  "name": "@regbo/dbx-model-catalog-common",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@chanx-js/client": "2.3.2",
+    "pynect": "0.8.14"
+  }
+}

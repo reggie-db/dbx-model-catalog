@@ -1,0 +1,27 @@
+{
+  "name": "@regbo/dbx-model-catalog",
+  "version": "0.1.0",
+  "description": "Thin Node client for the Python-owned dbx-model-catalog service",
+  "type": "module",
+  "bin": {
+    "dbx-model-catalog": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "pynect": "0.8.14"
+  },
+  "devDependencies": {
+    "@regbo/dbx-model-catalog-common": "workspace:*",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  },
+  "sideEffects": false
+}

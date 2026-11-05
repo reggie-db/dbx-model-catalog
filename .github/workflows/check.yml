@@ -35,4 +35,4 @@ jobs:
       - name: Install Node dependencies
         run: bun install
       - name: Run workspace checks
-        run: uvx --from 'hatch>=1.16,<2' hatch run check
+        run: bun run check

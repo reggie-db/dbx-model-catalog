@@ -1,214 +1,96 @@
 # dbx-model-catalog
 
-Python-first model catalog monorepo with generated Node and browser clients that
-share one strongly typed Pynect contract over local IPC and WebSockets.
+Python owns the catalog schema, Pydantic models, filtering, and synchronization.
+Chanx exposes the read-only catalog service. Pynect generates the TypeScript
+contract used by both the Node client and browser.
 
-## Packages
+Text search is ranked by the Python service with RapidFuzz. The browser keeps
+categorical and numeric filtering local after receiving the relevance-ordered
+matches.
 
-- `packages/python` publishes `dbx-model-catalog`. It owns the Pydantic client,
-  query DSL, source synchronization, catalog normalization, JSON Schema, and
-  Hatch build hook.
-- `packages/node` publishes `@regbo/dbx-model-catalog`. Pynect generates its
-  TypeScript bridge from the Python package. Local Node and Bun callers use IPC,
-  while browsers use the same generated module contract over WebSockets.
+## Layout
 
-Node client generation uses Pynect `^0.8.5` from npm. Pynect supplies compatible
-Pyfig, Loqkit, and Optionkit dependencies through npm; the workspace has no
-GitHub links or vendored tarballs for those packages. The generated npm package
-bundles that runtime. Its runtime defaults uv and Python provisioning to
-Astral's release mirror rather than GitHub release endpoints.
+- `packages/py/common`: shared Pydantic models and catalog read/filter service
+- `packages/py/server`: Chanx WebSocket server and Pynect worker configuration
+- `packages/py/sync`: source ingestion and catalog publishing
+- `packages/js/common`: generated Pynect contract plus a small shared wrapper
+- `packages/js/node`: thin local IPC or remote WebSocket client and Bun CLI
+- `packages/js/sync`: Bun entry point for the heavier Python sync package
+- `packages/js/web`: React catalog browser using the remote WebSocket client
 
-The previous Zod, TypeScript client, and TypeScript sync packages have been
-removed. The committed JSON Schema in the Python package remains the catalog
-contract and generates the Pydantic models during builds.
+Generated TypeScript is written to `packages/js/common/src/_generated`.
+Handwritten TypeScript does not duplicate the Python API models.
 
-## Published catalog
-
-The normalized Databricks catalog is published as JSON and Brotli-compressed
-JSON at <https://reggie-db.github.io/dbx-model-catalog/>. The page provides a
-dbx.tools-branded explorer with filters, sortable headers, optional ranking and
-benchmark columns, model details, and direct downloads. It is built with
-`@dbx-tools/ui`, Databricks AppKit UI, TanStack Table, and LobeHub publisher
-logos. Publisher values identify the model creator or lab, never an inference
-gateway or reseller discovered in an upstream source. Raw upstream source
-payloads are not published. The server-backed app uses the typed RPC client;
-the GitHub Pages build falls back to its colocated normalized JSON artifact
-because Pages cannot host the Bun RPC server.
-
-`.github/workflows/refresh-catalog.yml` refreshes the normalized artifacts each
-week and commits changes under `site/`. It restores the Python source and
-normalization cache between runs. `.github/workflows/pages.yml` deploys that
-directory through GitHub Pages whenever the site or catalog changes. The Pages
-workflow builds the React explorer and publishes only `site/dist`.
-
-## Development
-
-Install Hatch and run the workspace checks:
+## Setup and checks
 
 ```sh
-hatch run check
+bun install
+bun run generate
+bun run check
 ```
 
-Useful commands:
+The root is a virtual uv workspace. Each Python package uses Hatchling, and
+server/sync declare common as a workspace dependency:
 
 ```sh
-hatch run test
-hatch run schema
-hatch run node-generate
-hatch run node-build
-hatch run build
-bun run catalog:publish
-bun run sync --format
-bun run site:check
-bun run site:serve
+uv build --package dbx-model-catalog
 ```
 
-The Node package also publishes a `dbx-model-catalog` CLI. Its parser is an
-optional dependency installed lazily on first use, following the same pattern
-as Pyfig. The command runs the Python sync implementation through the bundled
-Pynect bridge; the Python package does not publish a CLI entry point.
+The root Bun build regenerates the Pynect client, builds Node and the browser,
+then builds the Python distribution:
 
 ```sh
-dbx-model-catalog sync
-dbx-model-catalog sync --format
-dbx-model-catalog sync --raw --format
-dbx-model-catalog lookup gpt --status active preview --task reasoning
-dbx-model-catalog lookup --type embedding --input-modality text --limit 10 --format
-dbx-model-catalog lookup --capability tools structured-output --min-context 128000
-dbx-model-catalog lookup gpt --refresh
+bun run build
 ```
 
-The Node-only `lookup` command synchronizes the normalized catalog and passes
-its filters to the Python query DSL. It includes typed identity, lifecycle,
-task, modality, capability, token-limit, date, sort, and limit options, plus an
-`--expression` JSON escape hatch for the complete DSL.
+## Node client
 
-The completed normalized catalog uses DiskCache for one-hour, SQLite-backed
-persistence under the system temporary directory. Warm `lookup` and normalized
-`sync` commands reuse that catalog without fetching or parsing sources. Pass
-`--refresh` to evict and rebuild it immediately, refresh the source caches, and
-replace the normalized cache.
-
-`bun run site:serve` builds the explorer and starts the site with a Pynect
-WebSocket endpoint at `/pynect`. The Bun server launches the official
-`pynect-worker[server]` Python CLI from Pynect's bundled wheel through Pyfig and
-proxies binary WebSocket upgrades without defining another HTTP RPC contract.
-
-The browser and local Node clients import the same generated Python modules and
-use the same `NodeModelCatalogClient` interface. Node uses Pynect's local IPC
-transport; the browser uses Pynect's WebSocket transport.
-
-Hugging Face-backed sources use `HF_TOKEN` from the process environment. When
-it is unset, the sync client walks upward from the current directory to the
-nearest `.env` and reads only its `HF_TOKEN` entry. The repository already
-ignores `.env`, so a local root file can contain:
-
-```dotenv
-HF_TOKEN=your-token
-```
-
-`hatch run build` creates the Python sdist and wheel. The wheel build hook also
-generates the Pynect bridge, builds the Node package, and embeds a publish-ready
-npm tarball under `packages/python/dist-node`.
-
-Publishing remains explicit rather than happening as a side effect of a normal
-build:
+Without a URL, the Bun CLI starts the Python Pynect worker and connects over
+local IPC. With `--url`, it connects to an already-running Chanx server over
+WebSocket.
 
 ```sh
-hatch run publish:python
-hatch run publish:node
+bun run chanx-model-catalog models gpt
+bun run chanx-model-catalog model-feed gpt
+bun run chanx-model-catalog models gpt --url ws://127.0.0.1:8000
 ```
 
-## Python
-
-```py
-from dbx_model_catalog import CatalogQueryOptions, ModelCatalogClient
-
-catalog = ModelCatalogClient.from_published()
-
-models = catalog.query(
-    {"status": "active", "tasks": ["reasoning", "chat"]},
-    CatalogQueryOptions(order_by="name", limit=20),
-)
-```
-
-`from_published()` caches the compressed payload in the platform-native user
-cache directory for one hour. Pass `refresh=True` to replace the local copy.
-
-`list()` returns a standard typed list for native filtering and sorting:
-
-```py
-models = catalog.list()
-models = [model for model in models if model.status.value == "active"]
-models.sort(key=lambda model: model.name.casefold())
-```
-
-The Python distribution also exposes `dbx_model_catalog.sync` for models.dev,
-modelparams.dev, LiveBench, Databricks documentation, cache handling, and
-catalog normalization.
-
-## Node and Bun
+Library use follows the same rule:
 
 ```ts
-import { DbxModelCatalogPython } from "@regbo/dbx-model-catalog";
+import { connectModelCatalog } from '@regbo/dbx-model-catalog';
 
-await using python = new DbxModelCatalogPython();
-const catalogModule = await python.client;
-const catalog = await catalogModule.NodeModelCatalogClient();
-
-console.log(await catalog.get_size());
-console.log(await catalog.query(
-  { status: { $eq: "active" }, capabilities: { tools: { $eq: true } } },
-  { orderBy: "name", limit: 10 },
-));
+await using session = await connectModelCatalog(process.env.CATALOG_URL);
+const models = await session.client.list({ status: ['active'], limit: 10 });
 ```
 
-The Node client contains no separate catalog implementation. Pynect constructs
-the Python client, downloads the same published Brotli artifact, and reuses the
-same Python DiskCache-backed local payload cache.
+## Server and browser
 
-The generated default requests `dbx-model-catalog>=<matching version>` from
-`uv`. Callers can override any Pynect environment option:
-
-```ts
-const python = new DbxModelCatalogPython({
-  project: false,
-  with: ["dbx-model-catalog", "polars"],
-});
+```sh
+bun run serve
 ```
 
-This is the runtime route:
+This builds the browser and starts the Python server at
+`http://127.0.0.1:8000`. The browser connects to the same origin over
+WebSocket. GitHub Pages cannot host the server, so the deployed static build
+reads its colocated `catalog.json` instead.
 
-1. The Node package starts its bundled Pynect bridge lazily.
-2. Pynect asks Pyfig for a compatible `uv` and Python.
-3. Pyfig reuses installed executables when compatible and provisions missing
-   executables when necessary.
-4. Pynect launches `uv run` with the configured project and `with`
-   dependencies.
-5. `uv` creates or reuses the environment, installs the Python dependencies,
-   and starts the persistent Pynect worker.
+The server and local IPC worker load the published catalog by default. Set
+`DBX_MODEL_CATALOG_PATH` only when an explicit local catalog artifact is needed.
 
-Neither `uv` nor Python must already be installed for a normal published Node
-client invocation. The generated client requests the latest available
-`dbx-model-catalog` package without pinning it. In a development checkout, pass
-`project: false`, `with: []`, and `withEditable: ["../python"]` to use the local
-Hatch package instead. The site server selects that editable checkout
-automatically when `packages/python/pyproject.toml` exists.
+The server also exposes `/health`, `/asyncapi`, and `/asyncapi.json`.
 
-The browser binding exposes the same generated module contract as local IPC:
+## Catalog synchronization
 
-```ts
-import { DbxModelCatalogWebSocket } from "@regbo/dbx-model-catalog/rpc";
+Synchronization is separate from all clients. The Bun command invokes the
+Python sync package; no Python CLI entry point is published.
 
-await using python = new DbxModelCatalogWebSocket({
-  baseUrl: "http://127.0.0.1:8000",
-});
-const module = await python.client;
-const client = await module.NodeModelCatalogClient();
-console.log(await client.query(
-  { status: { $eq: "active" } },
-  { orderBy: "name", limit: 10 },
-));
+```sh
+bun run sync
+bun run sync --refresh
+bun run sync --output-directory packages/js/web
 ```
 
-In a browser, omit `baseUrl` to use `window.location.origin`.
+Hugging Face-backed sources use `HF_TOKEN` from the environment. The sync
+package also reads the nearest ignored `.env` file when the variable is not
+already set.
