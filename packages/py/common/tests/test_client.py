@@ -154,14 +154,13 @@ def test_published_client_uses_persistent_cache_and_refreshes(
     assert calls == 2
 
 
-def test_writes_normalized_json_and_brotli_artifacts(
+def test_writes_normalized_catalog_artifact(
     catalog: dict[str, object], tmp_path
 ) -> None:
     parsed = ModelCatalogClient.from_catalog(catalog).catalog
-    json_path, brotli_path = write_catalog_artifacts(parsed, tmp_path)
+    json_path = write_catalog_artifacts(parsed, tmp_path)
 
     assert ModelCatalogClient.from_json(json_path.read_bytes()).catalog == parsed
-    assert ModelCatalogClient.from_brotli(brotli_path.read_bytes()).catalog == parsed
 
 
 def test_queries_boolean_text_sort_and_limit(catalog: dict[str, object]) -> None:

@@ -2,7 +2,7 @@
 
 import type {
   CatalogFilters,
-} from '@regbo/dbx-model-catalog-common';
+} from '@dbx-tools/dbx-model-catalog-common';
 import { connectModelCatalog } from './index.js';
 
 type Command = 'catalog' | 'models' | 'model-feed';

@@ -1,5 +1,5 @@
 {
-  "name": "dbx-model-catalog-workspace",
+  "name": "@dbx-tools/dbx-model-catalog-workspace",
   "private": true,
   "type": "module",
   "workspaces": [

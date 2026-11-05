@@ -1,15 +1,9 @@
-name: Refresh catalog
+name: Publish catalog
 
 on:
   schedule:
-    - cron: "17 6 * * 1"
+    - cron: "17 6 */3 * *"
   workflow_dispatch:
-    inputs:
-      refresh_sources:
-        description: Ignore cached sources and fetch everything again
-        required: true
-        type: boolean
-        default: true
 
 permissions:
   contents: write
@@ -38,32 +32,19 @@ jobs:
           bun-version-file: .bun-version
       - name: Install Node dependencies
         run: bun install
-      - name: Restore source and normalized catalog cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: /tmp/dbx-model-catalog
-          key: catalog-${{ runner.os }}-${{ github.run_id }}
-          restore-keys: |
-            catalog-${{ runner.os }}-
       - name: Build published catalog
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          REFRESH_SOURCES: ${{ github.event_name == 'workflow_dispatch' && inputs.refresh_sources || false }}
-        run: |
-          arguments=(--output-directory packages/js/web)
-          if [[ "$REFRESH_SOURCES" == "true" ]]; then
-            arguments+=(--refresh)
-          fi
-          bun run sync "${arguments[@]}"
+        run: bun run sync --refresh --output-directory packages/js/web
       - name: Commit catalog updates
         run: |
-          if git diff --quiet -- packages/js/web/catalog.json packages/js/web/catalog.json.br; then
+          if git diff --quiet -- packages/js/web/catalog.json; then
             echo "Catalog is unchanged."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/js/web/catalog.json packages/js/web/catalog.json.br
+          git add packages/js/web/catalog.json
           git commit -m "Refresh published model catalog"
           git pull --rebase
           git push

@@ -1,5 +1,5 @@
 {
-  "name": "@regbo/dbx-model-catalog-sync",
+  "name": "@dbx-tools/dbx-model-catalog-sync",
   "private": true,
   "type": "module",
   "scripts": {

@@ -17,7 +17,7 @@ export async function connectModelCatalog(
   input?: string | ConnectModelCatalogOptions,
 ) {
   const [{ createCatalogClient }, { startWorker }] = await Promise.all([
-    import('@regbo/dbx-model-catalog-common'),
+    import('@dbx-tools/dbx-model-catalog-common'),
     import('pynect'),
   ]);
   const options = typeof input === 'string' ? { url: input } : input ?? {};
@@ -67,4 +67,4 @@ async function resolvePythonExecutable(): Promise<string> {
   return python;
 }
 
-export type * from '@regbo/dbx-model-catalog-common';
+export type * from '@dbx-tools/dbx-model-catalog-common';

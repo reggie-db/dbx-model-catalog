@@ -1,5 +1,5 @@
 {
-  "name": "@regbo/dbx-model-catalog-web",
+  "name": "@dbx-tools/dbx-model-catalog-web",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,6 +7,6 @@
     "typecheck": "bun run tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@regbo/dbx-model-catalog-common": "workspace:*"
+    "@dbx-tools/dbx-model-catalog-common": "workspace:*"
   }
 }

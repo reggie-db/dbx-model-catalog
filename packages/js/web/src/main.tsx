@@ -74,7 +74,7 @@ import {
   type CatalogModelRecord,
   type ModelCatalog as CatalogPayload,
   type SourceLink,
-} from "@regbo/dbx-model-catalog-common";
+} from "@dbx-tools/dbx-model-catalog-common";
 
 type Cloud = "aws" | "azure" | "gcp";
 type Ranking = CatalogModel["rankings"][number];
@@ -248,6 +248,12 @@ function makeEnumOptions(
 
 function formatNumber(value: number | null | undefined) {
   return typeof value === "number" ? new Intl.NumberFormat().format(value) : "—";
+}
+
+function formatPrice(value: number | undefined) {
+  return typeof value === "number"
+    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(value)
+    : "—";
 }
 
 function formatDate(value: string | null | undefined) {
@@ -469,8 +475,18 @@ function HeaderFilter({
   );
 }
 
-function DetailSection({ title, sources = [], children }: { title: string; sources?: SourceLink[]; children: ReactNode }) {
-  return <section className="detail-section"><h3>{title}<SourceLinks sources={sources} /></h3>{children}</section>;
+function DetailSection({
+  title,
+  sources = [],
+  wide = false,
+  children,
+}: {
+  title: string;
+  sources?: SourceLink[];
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return <section className={`detail-section${wide ? " detail-section-wide" : ""}`}><h3>{title}<SourceLinks sources={sources} /></h3>{children}</section>;
 }
 
 function AvailabilityDetails({ model }: { model: CatalogModel }) {
@@ -488,11 +504,83 @@ function AvailabilityDetails({ model }: { model: CatalogModel }) {
 function PriceDetails({ model }: { model: CatalogModel }) {
   const prices = Object.entries(model.average_price);
   if (!prices.length) return <p className="muted">No normalized price published.</p>;
-  return <ul className="metric-list">{prices.map(([currency, price]) => (
-    <li key={currency}>
-      <strong>{currency}</strong> · {titleCase(price.unit)} · {Object.entries(price.rates).map(([name, value]) => `${titleCase(name)} ${value}`).join(", ")}
-    </li>
-  ))}</ul>;
+
+  const units = [...new Set(prices.map(([, price]) => price.unit))];
+  return <div className="price-tables">{units.map(unit => {
+    const unitPrices = prices.filter(([, price]) => price.unit === unit);
+    const currencies = unitPrices.map(([currency]) => currency);
+    const rateNames = [...new Set(unitPrices.flatMap(([, price]) => Object.keys(price.rates)))];
+    const groups: Array<{
+      context: string;
+      key: string;
+      plan: string;
+      rows: Array<{ meter: string; rateName: string }>;
+    }> = [];
+
+    for (const rateName of rateNames) {
+      const dimension = priceDimension(rateName);
+      const key = `${dimension.plan}:${dimension.context}`;
+      const current = groups.at(-1);
+      const group = current?.key === key
+        ? current
+        : { ...dimension, key, rows: [] };
+      if (group !== current) groups.push(group);
+      group.rows.push({ meter: dimension.meter, rateName });
+    }
+
+    return (
+      <div className="price-group" key={unit}>
+        <p className="price-unit">{titleCase(unit)}</p>
+        <div className="price-table-scroll">
+          <table className="price-table">
+            <thead>
+              <tr>
+                <th scope="col">Plan</th>
+                <th scope="col">Context</th>
+                <th scope="col">Meter</th>
+                {currencies.map(currency => <th scope="col" key={currency}>{currency}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {groups.flatMap((group, groupIndex) => group.rows.map((row, rowIndex) => (
+                <tr key={`${group.key}-${groupIndex}-${row.rateName}`}>
+                  {rowIndex === 0 ? <th scope="rowgroup" rowSpan={group.rows.length}>{group.plan}</th> : null}
+                  {rowIndex === 0 ? <th scope="rowgroup" rowSpan={group.rows.length}>{group.context}</th> : null}
+                  <td>{row.meter}</td>
+                  {unitPrices.map(([currency, price]) => (
+                    <td className="price-number" key={currency}>{formatPrice(price.rates[row.rateName])}</td>
+                  ))}
+                </tr>
+              )))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  })}</div>;
+}
+
+function priceDimension(rateName: string) {
+  let value = rateName;
+  let plan = "Standard";
+  let context = "Any";
+
+  if (value.startsWith("priority_pay_per_token_")) {
+    plan = "Priority";
+    value = value.slice("priority_pay_per_token_".length);
+  }
+  if (value.startsWith("short_context_")) {
+    context = "Short";
+    value = value.slice("short_context_".length);
+  } else if (value.startsWith("long_context_")) {
+    context = "Long";
+    value = value.slice("long_context_".length);
+  }
+
+  const meter = titleCase(value)
+    .replace(" Tokens ", " ")
+    .replace(" 1hr", " (1 hr)");
+  return { context, meter, plan };
 }
 
 function ModelDetails({ model }: { model: CatalogRow }) {
@@ -504,9 +592,8 @@ function ModelDetails({ model }: { model: CatalogRow }) {
         <p className="model-id">{model.id}</p>
         <DialogTitle><SourcedText sources={fieldSources(model, "name")}>{model.name}</SourcedText></DialogTitle>
         <DialogDescription>
-          <SourcedText sources={model.description ? fieldSources(model, "description") : []}>
-            {model.description || "No description is available."}
-          </SourcedText>
+          <span>{model.description || "No description is available."}</span>
+          <SourceLinks sources={model.description ? fieldSources(model, "description") : []} />
         </DialogDescription>
       </DialogHeader>
       <div className="model-dialog-body">
@@ -541,7 +628,7 @@ function ModelDetails({ model }: { model: CatalogRow }) {
           <DetailSection title="Output modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.output} /></DetailSection>
           <DetailSection title="Tasks" sources={fieldSources(model, "tasks")}><Chips values={model.tasks} limit={8} /></DetailSection>
           <DetailSection title="Use cases" sources={fieldSources(model, "use_cases")}><Chips values={model.use_cases} limit={8} /></DetailSection>
-          <DetailSection title="Average price" sources={fieldSources(model, "average_price")}><PriceDetails model={model} /></DetailSection>
+          <DetailSection title="Average price" sources={fieldSources(model, "average_price")} wide><PriceDetails model={model} /></DetailSection>
           <DetailSection title="Retirement" sources={fieldSources(model, "retirement")}>
             {model.retirement ? <ul className="metric-list">
               {model.retirement.schedules.map(schedule => <li key={schedule.offering}><strong>{schedule.offering}</strong> · {schedule.dates.map(formatDate).join(", ")}</li>)}
@@ -809,8 +896,7 @@ function App() {
             <div><h1>Model Catalog</h1><p>Databricks serving models</p></div>
           </div>
           <nav className="top-actions" aria-label="Catalog downloads">
-            <Button asChild variant="outline" size="sm"><a href="catalog.json" download><Download /> JSON</a></Button>
-            <Button asChild variant="outline" size="sm"><a href="catalog.json.br" download><Download /> Brotli</a></Button>
+            <Button asChild variant="outline" size="sm"><a href="catalog.json" download><Download /> Catalog JSON</a></Button>
           </nav>
         </header>
 

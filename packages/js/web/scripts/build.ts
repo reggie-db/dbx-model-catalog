@@ -40,7 +40,7 @@ if (!result.success) {
 
 await mkdir(output, { recursive: true });
 await Promise.all(
-  [".nojekyll", "catalog.json", "catalog.json.br", "favicon.svg"].map(file =>
+  [".nojekyll", "catalog.json", "favicon.svg"].map(file =>
     copyFile(resolve(root, file), resolve(output, file)),
   ),
 );

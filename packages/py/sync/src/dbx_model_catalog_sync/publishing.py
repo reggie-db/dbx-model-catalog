@@ -9,7 +9,7 @@ def publish_catalog(
     output_directory: str | Path,
     *,
     refresh: bool = False,
-) -> tuple[Path, Path]:
+) -> Path:
     catalog = CatalogSync().sync(refresh=refresh)
     return write_catalog_artifacts(catalog, output_directory)
 
