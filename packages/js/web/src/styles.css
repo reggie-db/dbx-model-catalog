@@ -95,6 +95,8 @@ td { max-width: none; vertical-align: top; }
 .table-source-link { color: inherit; text-decoration-color: color-mix(in srgb, currentColor 20%, transparent); text-decoration-line: underline; text-decoration-style: dotted; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .table-source-link:hover { color: var(--primary); }
 .table-source-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.metric-cell { display: grid; gap: 3px; min-width: 0; }
+.metric-variant { display: block; color: var(--muted-foreground); font-size: 0.72rem; line-height: 1.35; }
 .publisher-mark { display: inline-flex; align-items: center; gap: 8px; min-width: 132px; font-size: 0.82rem; font-weight: 600; }
 .publisher-logo { flex: 0 0 auto; color: var(--foreground); }
 .publisher-fallback { display: inline-grid; width: 18px; height: 18px; place-items: center; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 5px; background: var(--muted); font-size: 0.66rem; font-weight: 750; }

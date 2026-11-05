@@ -97,6 +97,11 @@ import {
   type ModelCatalog as CatalogPayload,
   type SourceLink,
 } from "@dbx-tools/dbx-model-catalog/browser";
+import {
+  evaluationLabelsForResults,
+  evaluationVariantLabels,
+  type EvaluationVariant,
+} from "./evaluation.js";
 import { searchStaticCatalog } from "./search.js";
 
 type Cloud = "aws" | "azure" | "gcp";
@@ -161,6 +166,7 @@ const columnLabels: Record<string, string> = {
   capabilities: "Capabilities",
   clouds: "Clouds",
   context: "Context",
+  evaluationVariants: "Evaluation variants",
   family: "Family",
   inputModalities: "Input modalities",
   inputLimit: "Input limit",
@@ -323,6 +329,10 @@ function servingModes(model: CatalogModel) {
   return [...new Set(Object.values(model.availability).flatMap(availability => availability.serving_modes))];
 }
 
+function evaluationLabels(model: CatalogModel) {
+  return evaluationLabelsForResults([...model.rankings, ...model.benchmarks]);
+}
+
 function bestOverallRanking(model: CatalogModel) {
   return model.rankings
     .filter(ranking => ranking.category.toLocaleLowerCase() === "overall")
@@ -446,7 +456,11 @@ function Chips({
   return (
     <div className="chip-list">
       {visible.map(value => {
-        const Icon = kind === "capability" ? capabilityIcons[value] : kind === "modality" ? modalityMeta[value]?.Icon : undefined;
+        const Icon = kind === "capability"
+          ? capabilityIcons[value] ?? (value === "Thinking" || value.toLocaleLowerCase().includes("reasoning") ? Brain : undefined)
+          : kind === "modality"
+            ? modalityMeta[value]?.Icon
+            : undefined;
         const label = humanize || kind === "modality" ? humanizeEnum(value) : value;
         return <Badge className={`enum-chip enum-chip-${kind}`} key={value}>{Icon ? <Icon aria-hidden /> : null}<span>{label}</span></Badge>;
       })}
@@ -534,6 +548,11 @@ function TableSourceLink({ children, sources }: { children: ReactNode; sources: 
       {children}
     </a>
   );
+}
+
+function EvaluationVariantSummary({ variant }: { variant: EvaluationVariant | null | undefined }) {
+  const labels = evaluationVariantLabels(variant);
+  return labels.length ? <span className="metric-variant">{labels.join(" · ")}</span> : null;
 }
 
 function HeaderFilter({
@@ -813,6 +832,7 @@ function ModelDetails({ model }: { model: CatalogRow }) {
                   <strong>#{ranking.rank}</strong>{" "}
                   <TableSourceLink sources={ranking.sources}>{titleCase(ranking.domain)}</TableSourceLink>
                   {ranking.category.toLocaleLowerCase() === "overall" ? null : <> · {titleCase(ranking.category)}</>}
+                  <EvaluationVariantSummary variant={ranking.variant} />
                 </li>
               ))}</ul>
             </DetailSection> : null}
@@ -820,6 +840,7 @@ function ModelDetails({ model }: { model: CatalogRow }) {
               <ul className="metric-list">{benchmarks.map(benchmark => (
                 <li key={`${benchmark.name}-${benchmark.rank}`}>
                   <strong>#{benchmark.rank}</strong> <TableSourceLink sources={benchmark.sources}>{benchmark.name}</TableSourceLink> · {benchmark.score}
+                  <EvaluationVariantSummary variant={benchmark.variant} />
                 </li>
               ))}</ul>
             </DetailSection> : null}
@@ -987,6 +1008,7 @@ function App() {
   const headerFilterOptions = useMemo<Record<string, EnumOption[]>>(() => ({
     capabilities: makeEnumOptions(models.flatMap(activeCapabilities), value => value),
     clouds: makeEnumOptions(models.flatMap(activeClouds), value => cloudMeta[value as Cloud]?.label ?? humanizeEnum(value)),
+    evaluationVariants: makeEnumOptions(models.flatMap(evaluationLabels), value => value),
     family: makeEnumOptions(models.map(model => model.family), value => value),
     inputModalities: makeEnumOptions(models.flatMap(model => model.modalities.input), humanizeEnum),
     license: makeEnumOptions(models.map(model => model.license), value => value),
@@ -1038,13 +1060,14 @@ function App() {
     { id: "clouds", accessorFn: row => activeClouds(row), header: "Clouds", filterFn: enumFilter, cell: ({ row }) => <CloudChips clouds={activeClouds(row.original)} /> },
     { id: "servingModes", accessorFn: row => servingModes(row), header: "Serving modes", filterFn: enumFilter, cell: ({ row }) => <Chips values={servingModes(row.original)} humanize limit={3} /> },
     { id: "capabilities", accessorFn: row => activeCapabilities(row), header: "Capabilities", filterFn: enumFilter, cell: ({ row }) => <Chips values={activeCapabilities(row.original)} kind="capability" limit={3} /> },
+    { id: "evaluationVariants", accessorFn: row => evaluationLabels(row), header: "Evaluation variants", filterFn: enumFilter, cell: ({ row }) => <Chips values={evaluationLabels(row.original)} kind="capability" limit={3} /> },
     { id: "inputModalities", accessorFn: row => row.modalities.input, header: "Input modalities", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.modalities.input} kind="modality" /> },
     { id: "outputModalities", accessorFn: row => row.modalities.output, header: "Output modalities", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.modalities.output} kind="modality" /> },
     { id: "tasks", accessorFn: row => row.tasks, header: "Tasks", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.tasks} humanize /> },
     { id: "useCases", accessorFn: row => row.use_cases, header: "Use cases", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.use_cases} humanize /> },
-    { id: "overallRank", accessorFn: row => bestOverallRanking(row)?.rank, header: "Best overall rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestOverallRanking(row.original); return ranking ? <TableSourceLink sources={ranking.sources}><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)}</TableSourceLink> : "—"; } },
-    { id: "categoryRank", accessorFn: row => bestCategoryRanking(row)?.rank, header: "Best category rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestCategoryRanking(row.original); return ranking ? <TableSourceLink sources={ranking.sources}><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)} · {titleCase(ranking.category)}</TableSourceLink> : "—"; } },
-    { id: "benchmarks", accessorFn: row => topBenchmark(row)?.rank, header: "Top benchmark", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const benchmark = topBenchmark(row.original); return benchmark ? <TableSourceLink sources={benchmark.sources}><strong>#{benchmark.rank}</strong> {benchmark.name} · {benchmark.score}</TableSourceLink> : "—"; } },
+    { id: "overallRank", accessorFn: row => bestOverallRanking(row)?.rank, header: "Best overall rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestOverallRanking(row.original); return ranking ? <span className="metric-cell"><TableSourceLink sources={ranking.sources}><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)}</TableSourceLink><EvaluationVariantSummary variant={ranking.variant} /></span> : "—"; } },
+    { id: "categoryRank", accessorFn: row => bestCategoryRanking(row)?.rank, header: "Best category rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestCategoryRanking(row.original); return ranking ? <span className="metric-cell"><TableSourceLink sources={ranking.sources}><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)} · {titleCase(ranking.category)}</TableSourceLink><EvaluationVariantSummary variant={ranking.variant} /></span> : "—"; } },
+    { id: "benchmarks", accessorFn: row => topBenchmark(row)?.rank, header: "Top benchmark", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const benchmark = topBenchmark(row.original); return benchmark ? <span className="metric-cell"><TableSourceLink sources={benchmark.sources}><strong>#{benchmark.rank}</strong> {benchmark.name} · {benchmark.score}</TableSourceLink><EvaluationVariantSummary variant={benchmark.variant} /></span> : "—"; } },
     { id: "openWeights", accessorFn: row => row.open_weights == null ? "Unknown" : row.open_weights ? "Yes" : "No", header: "Open weights", filterFn: enumFilter, cell: ({ row }) => row.original.open_weights == null ? "—" : row.original.open_weights ? "Yes" : "No" },
     { id: "released", accessorKey: "release_date", header: "Released", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
     { id: "updated", accessorKey: "last_updated", header: "Updated", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
