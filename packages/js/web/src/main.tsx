@@ -208,6 +208,7 @@ interface ColumnDropTarget {
 }
 
 const tablePreferencesKey = "dbx-model-catalog.table-preferences.v1";
+const searchDebounceMs = 350;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -936,7 +937,7 @@ function App() {
           }
         })
         .finally(() => { if (active) setSearching(false); });
-    }, 120);
+    }, searchDebounceMs);
     return () => {
       active = false;
       window.clearTimeout(timeout);
