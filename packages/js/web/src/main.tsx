@@ -62,8 +62,6 @@ import {
 import {
   ArrowDown,
   ArrowUp,
-  ChevronDown,
-  ChevronUp,
   ChevronsUpDown,
   Columns3,
   Download,
@@ -73,7 +71,7 @@ import {
   RotateCcw,
   Search,
 } from "lucide-react";
-import { type ComponentType, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentType, type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   createCatalogClient,
@@ -162,6 +160,11 @@ interface TablePreferences {
   columnOrder: ColumnOrderState;
   columnSizing: ColumnSizingState;
   columnVisibility: VisibilityState;
+}
+
+interface ColumnDropTarget {
+  id: string;
+  position: "after" | "before";
 }
 
 const tablePreferencesKey = "dbx-model-catalog.table-preferences.v1";
@@ -751,6 +754,7 @@ function App() {
   const [sorting, setSorting] = useState<SortingState>([{ id: "model", desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
+  const [columnDropTarget, setColumnDropTarget] = useState<ColumnDropTarget | null>(null);
   const [selected, setSelected] = useState<CatalogRow | null>(null);
 
   useEffect(() => {
@@ -970,11 +974,11 @@ function App() {
     getFacetedUniqueValues: getFacetedUniqueValues(),
   });
 
-  const configurableColumns = columnOrder
+  const visibilityColumns = defaultColumnOrder
     .map(id => table.getColumn(id))
     .filter((column): column is Column<CatalogRow, unknown> => Boolean(column && column.id !== "relevance"));
 
-  const reorderColumn = (sourceId: string, targetId: string) => {
+  const reorderColumn = (sourceId: string, targetId: string, position: ColumnDropTarget["position"]) => {
     if (sourceId === targetId) return;
     setColumnOrder(current => {
       const next = mergeColumnOrder(current, defaultColumnOrder);
@@ -982,23 +986,78 @@ function App() {
       const targetIndex = next.indexOf(targetId);
       if (sourceIndex < 0 || targetIndex < 0) return current;
       const [source] = next.splice(sourceIndex, 1);
-      next.splice(next.indexOf(targetId), 0, source);
+      const adjustedTargetIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+      next.splice(adjustedTargetIndex + (position === "after" ? 1 : 0), 0, source);
       return next;
     });
   };
 
-  const moveColumn = (columnId: string, offset: -1 | 1) => {
-    const ids = configurableColumns.map(column => column.id);
+  const moveVisibleColumn = (columnId: string, offset: -1 | 1) => {
+    const ids = table.getVisibleLeafColumns().map(column => column.id);
     const index = ids.indexOf(columnId);
     const target = ids[index + offset];
     if (!target) return;
-    setColumnOrder(current => {
-      const next = mergeColumnOrder(current, defaultColumnOrder);
-      const sourceIndex = next.indexOf(columnId);
-      const targetIndex = next.indexOf(target);
-      [next[sourceIndex], next[targetIndex]] = [next[targetIndex], next[sourceIndex]];
-      return next;
-    });
+    reorderColumn(columnId, target, offset === -1 ? "before" : "after");
+  };
+
+  const startColumnDrag = (event: ReactPointerEvent<HTMLButtonElement>, sourceId: string) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let active = false;
+    let target: ColumnDropTarget | null = null;
+
+    event.currentTarget.focus();
+
+    const clear = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", cancel);
+      setDraggedColumnId(null);
+      setColumnDropTarget(null);
+    };
+
+    const move = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId !== pointerId) return;
+      if (!active && Math.hypot(pointerEvent.clientX - startX, pointerEvent.clientY - startY) < 4) return;
+
+      active = true;
+      pointerEvent.preventDefault();
+      setDraggedColumnId(sourceId);
+
+      const header = document
+        .elementFromPoint(pointerEvent.clientX, pointerEvent.clientY)
+        ?.closest<HTMLElement>("th[data-column-id]");
+      const targetId = header?.dataset.columnId;
+      if (!header || !targetId || targetId === sourceId) {
+        target = null;
+        setColumnDropTarget(null);
+        return;
+      }
+
+      const bounds = header.getBoundingClientRect();
+      target = {
+        id: targetId,
+        position: pointerEvent.clientX < bounds.left + bounds.width / 2 ? "before" : "after",
+      };
+      setColumnDropTarget(target);
+    };
+
+    const finish = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId !== pointerId) return;
+      if (active && target) reorderColumn(sourceId, target.id, target.position);
+      clear();
+    };
+
+    const cancel = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId === pointerId) clear();
+    };
+
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", cancel);
   };
 
   const autoSizeColumn = (column: Column<CatalogRow, unknown>) => {
@@ -1115,37 +1174,8 @@ function App() {
                     <div className="column-menu-heading">Columns</div>
                     <div className="column-menu-separator" />
                     <div className="column-menu-list">
-                      {configurableColumns.map((column, index) => (
-                        <div
-                          className="column-menu-row"
-                          data-dragging={draggedColumnId === column.id || undefined}
-                          key={column.id}
-                          onDragOver={event => {
-                            event.preventDefault();
-                            event.dataTransfer.dropEffect = "move";
-                          }}
-                          onDrop={event => {
-                            event.preventDefault();
-                            const sourceId = draggedColumnId ?? event.dataTransfer.getData("text/plain");
-                            if (sourceId) reorderColumn(sourceId, column.id);
-                            setDraggedColumnId(null);
-                          }}
-                        >
-                          <button
-                            type="button"
-                            className="column-drag-handle"
-                            draggable
-                            aria-label={`Drag ${columnLabels[column.id] ?? column.id} to reorder`}
-                            title="Drag to reorder"
-                            onDragStart={event => {
-                              setDraggedColumnId(column.id);
-                              event.dataTransfer.effectAllowed = "move";
-                              event.dataTransfer.setData("text/plain", column.id);
-                            }}
-                            onDragEnd={() => setDraggedColumnId(null)}
-                          >
-                            <GripVertical aria-hidden="true" />
-                          </button>
+                      {visibilityColumns.map(column => (
+                        <div className="column-menu-row" key={column.id}>
                           <button
                             type="button"
                             className="column-toggle"
@@ -1163,36 +1193,6 @@ function App() {
                               {column.getIsVisible() ? "✓" : ""}
                             </span>
                             <span className="column-toggle-label">{columnLabels[column.id] ?? column.id}</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="column-move-button"
-                            disabled={index === 0}
-                            aria-label={`Move ${columnLabels[column.id] ?? column.id} left`}
-                            title="Move left"
-                            onPointerDown={event => event.stopPropagation()}
-                            onClick={event => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              moveColumn(column.id, -1);
-                            }}
-                          >
-                            <ChevronUp aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            className="column-move-button"
-                            disabled={index === configurableColumns.length - 1}
-                            aria-label={`Move ${columnLabels[column.id] ?? column.id} right`}
-                            title="Move right"
-                            onPointerDown={event => event.stopPropagation()}
-                            onClick={event => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              moveColumn(column.id, 1);
-                            }}
-                          >
-                            <ChevronDown aria-hidden="true" />
                           </button>
                         </div>
                       ))}
@@ -1215,11 +1215,27 @@ function App() {
                           <TableHead
                             className="resizable-header"
                             data-column-id={header.column.id}
+                            data-dragging={draggedColumnId === header.column.id || undefined}
+                            data-drop-position={columnDropTarget?.id === header.column.id ? columnDropTarget.position : undefined}
                             key={header.id}
                             aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"}
                             style={{ width: header.getSize() }}
                           >
                             <div className="table-header-control">
+                              <button
+                                type="button"
+                                className="header-drag-handle"
+                                aria-label={`Reorder ${label} column. Drag or use Left and Right Arrow keys.`}
+                                title="Drag to reorder · Use Left/Right Arrow keys"
+                                onPointerDown={event => startColumnDrag(event, header.column.id)}
+                                onKeyDown={event => {
+                                  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                                  event.preventDefault();
+                                  moveVisibleColumn(header.column.id, event.key === "ArrowLeft" ? -1 : 1);
+                                }}
+                              >
+                                <GripVertical aria-hidden="true" />
+                              </button>
                               <button type="button" className="sort-button" onClick={header.column.getToggleSortingHandler()}>
                                 {flexRender(header.column.columnDef.header, header.getContext())}
                                 {sorted === "asc" ? <ArrowUp /> : sorted === "desc" ? <ArrowDown /> : <ChevronsUpDown className="sort-idle" />}
