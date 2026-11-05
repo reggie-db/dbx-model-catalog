@@ -108,13 +108,23 @@ td { max-width: none; vertical-align: top; }
 .publisher-fallback { display: inline-grid; width: 18px; height: 18px; place-items: center; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 5px; background: var(--muted); font-size: 0.66rem; font-weight: 750; }
 .chip-list { flex-wrap: wrap; gap: 5px; min-width: 170px; }
 .chip-list [data-slot="badge"] { font-size: 0.68rem; font-weight: 600; }
+.enum-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); background: var(--muted); color: var(--foreground); }
+.enum-chip svg { width: 12px; height: 12px; flex: 0 0 auto; color: var(--muted-foreground); }
+.enum-chip-capability { background: color-mix(in srgb, var(--brand-color-accent) 9%, var(--muted)); }
+.enum-chip-capability svg { color: var(--brand-color-accent); }
+.enum-chip-modality svg { color: var(--foreground); }
+.cloud-chip { padding-inline: 6px; background: var(--background); }
+.cloud-mark, .enum-mark { display: inline-flex; align-items: center; gap: 6px; }
+.cloud-logo { width: 14px; height: 14px; flex: 0 0 auto; }
+.enum-mark svg { width: 14px; height: 14px; flex: 0 0 auto; color: var(--muted-foreground); }
 .more-count, .muted { color: var(--muted-foreground); }
 .more-count { font-size: 0.72rem; }
 .status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 650; }
 .status::before { width: 7px; height: 7px; border-radius: 999px; background: var(--muted-foreground); content: ""; }
 .status-active::before { background: var(--brand-color-accent); }
-.status-preview::before { background: #c98413; }
-.status-retired::before { background: #b54747; }
+.status-beta::before, .status-preview::before { background: #c98413; }
+.status-deprecated, .status-retired { color: var(--muted-foreground); }
+.status-deprecated::before, .status-retired::before { background: #8a8178; }
 .empty-state { display: grid; place-items: center; gap: 4px; min-height: 220px; padding: 32px; }
 .empty-state span { color: var(--muted-foreground); font-size: 0.86rem; }
 
@@ -122,14 +132,13 @@ td { max-width: none; vertical-align: top; }
 .model-dialog > [data-slot="dialog-header"] { padding: 24px 48px 18px 24px; border-bottom: 1px solid var(--border); background: var(--background); }
 .model-dialog > [data-slot="dialog-close"] { z-index: 3; }
 .model-dialog-body { min-height: 0; padding: 16px 24px 24px; overflow-y: auto; overscroll-behavior: contain; }
-.model-dialog [data-slot="dialog-description"] { display: grid; max-width: 760px; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; line-height: 1.55; }
-.model-dialog [data-slot="dialog-description"] .source-links { margin: 2px 0 0; flex: 0 0 auto; vertical-align: baseline; }
+.model-dialog [data-slot="dialog-description"] { max-width: 760px; line-height: 1.55; }
 .detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0 2px; }
 .detail-grid > div { padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--muted); }
 .detail-grid dt { color: var(--foreground); font-size: 0.75rem; font-weight: 500; }
 .detail-grid dd { margin: 3px 0 0; font-size: 0.86rem; font-weight: 650; }
 .detail-source-row, .metric-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
-.detail-source-row > span:first-child, .metric-heading > :first-child { min-width: 0; }
+.detail-source-row > :first-child, .metric-heading > :first-child { min-width: 0; }
 .detail-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
 .detail-section { min-width: 0; padding-block: 15px; border-top: 1px solid var(--border); }
 .detail-section-wide { grid-column: 1 / -1; }
@@ -137,6 +146,9 @@ td { max-width: none; vertical-align: top; }
 .detail-source-row .source-links, .detail-section h3 .source-links, .metric-heading .source-links { margin-left: auto; flex: 0 0 auto; vertical-align: baseline; }
 .detail-section p { margin: 0; font-size: 0.82rem; }
 .metric-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; font-size: 0.82rem; }
+.availability-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.availability-modes { color: var(--muted-foreground); }
+.availability-modes::before { margin-right: 8px; content: "·"; }
 .metric-detail { display: block; margin-top: 3px; color: var(--muted-foreground); line-height: 1.45; }
 .price-tables, .price-group { min-width: 0; }
 .price-tables { display: grid; gap: 12px; }

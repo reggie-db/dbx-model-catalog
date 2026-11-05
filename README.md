@@ -25,7 +25,8 @@ Arena leaderboard and retain the exact Hugging Face dataset row as a secondary
 source. The Columns menu controls visibility. Drag a table header handle to
 reorder columns. Drag a column divider to resize it or double-click the divider
 to fit its content. Column visibility, order, and widths are saved in local
-browser storage.
+browser storage. In model details, single-source values link directly to their
+source; numbered source markers are reserved for fields with multiple sources.
 
 The catalog has this top-level shape:
 

@@ -41,6 +41,9 @@ import OpenAI from "@lobehub/icons/es/OpenAI";
 import TypeSafeAI from "@lobehub/icons/es/TypeSafeAI";
 import XAI from "@lobehub/icons/es/XAI";
 import Zhipu from "@lobehub/icons/es/Zhipu";
+import Aws from "@lobehub/icons/es/Aws";
+import Azure from "@lobehub/icons/es/Azure";
+import GoogleCloud from "@lobehub/icons/es/GoogleCloud";
 import {
   type Column,
   type ColumnDef,
@@ -60,16 +63,28 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import {
+  AudioLines,
   ArrowDown,
   ArrowUp,
+  Brain,
+  Braces,
   ChevronsUpDown,
   Columns3,
+  Database,
   Download,
   ExternalLink,
+  FileText,
   Filter,
+  Globe2,
   GripVertical,
+  Image as ImageIcon,
+  MessageCircle,
+  Paperclip,
   RotateCcw,
   Search,
+  Type as TextIcon,
+  Video,
+  Wrench,
 } from "lucide-react";
 import { type ComponentType, type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -85,7 +100,7 @@ import {
 type Cloud = "aws" | "azure" | "gcp";
 type Ranking = CatalogModel["rankings"][number];
 type Benchmark = CatalogModel["benchmarks"][number];
-type PublisherIcon = ComponentType<{
+type CatalogIcon = ComponentType<{
   "aria-hidden"?: boolean;
   className?: string;
   size?: number | string;
@@ -109,6 +124,34 @@ const capabilityLabels = {
   web_search: "Web search",
 } as const;
 type CapabilityName = keyof typeof capabilityLabels;
+
+const capabilityIcons: Record<string, CatalogIcon> = {
+  Attachments: Paperclip,
+  Reasoning: Brain,
+  "Structured output": Braces,
+  Tools: Wrench,
+  "Web search": Globe2,
+};
+
+const modalityMeta: Record<string, { Icon: CatalogIcon; label: string }> = {
+  "application/pdf": { Icon: FileText, label: "PDF" },
+  audio: { Icon: AudioLines, label: "Audio" },
+  image: { Icon: ImageIcon, label: "Image" },
+  text: { Icon: TextIcon, label: "Text" },
+  video: { Icon: Video, label: "Video" },
+};
+
+const typeMeta: Record<string, { Icon: CatalogIcon; label: string }> = {
+  chat: { Icon: MessageCircle, label: "Chat" },
+  embedding: { Icon: Database, label: "Embedding" },
+  image: { Icon: ImageIcon, label: "Image" },
+};
+
+const cloudMeta: Record<Cloud, { Icon: CatalogIcon; label: string }> = {
+  aws: { Icon: Aws.Color, label: "AWS" },
+  azure: { Icon: Azure.Color, label: "Azure" },
+  gcp: { Icon: GoogleCloud.Color, label: "GCP" },
+};
 
 const columnLabels: Record<string, string> = {
   aliases: "Aliases",
@@ -245,7 +288,7 @@ const numericSorting: SortingFn<CatalogRow> = (left, right, columnId) => {
 const minimumFilterColumns = new Set(["context", "inputLimit", "outputLimit"]);
 const maximumFilterColumns = new Set(["benchmarks", "categoryRank", "overallRank"]);
 
-const publisherIcons: Record<string, PublisherIcon> = {
+const publisherIcons: Record<string, CatalogIcon> = {
   "Alibaba Cloud": AlibabaCloud,
   Anthropic,
   BAAI,
@@ -296,6 +339,13 @@ function topBenchmark(model: CatalogModel) {
 
 function titleCase(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, character => character.toUpperCase());
+}
+
+function humanizeEnum(value: string) {
+  const modality = modalityMeta[value];
+  if (modality) return modality.label;
+  const normalized = value.replaceAll("_", " ").replace(/\s+/g, " ").trim().toLocaleLowerCase();
+  return normalized ? normalized[0].toLocaleUpperCase() + normalized.slice(1) : value;
 }
 
 function makeEnumOptions(
@@ -372,15 +422,50 @@ function searchText(id: string, model: CatalogModel) {
     .toLocaleLowerCase();
 }
 
-function Chips({ values, limit = 4 }: { values: string[]; limit?: number }) {
+function Chips({
+  values,
+  limit = 4,
+  kind = "default",
+  humanize = false,
+}: {
+  values: string[];
+  limit?: number;
+  kind?: "capability" | "default" | "modality";
+  humanize?: boolean;
+}) {
   if (!values.length) return <span className="muted">—</span>;
   const visible = values.slice(0, limit);
   return (
     <div className="chip-list">
-      {visible.map(value => <Badge key={value}>{value}</Badge>)}
+      {visible.map(value => {
+        const Icon = kind === "capability" ? capabilityIcons[value] : kind === "modality" ? modalityMeta[value]?.Icon : undefined;
+        const label = humanize || kind === "modality" ? humanizeEnum(value) : value;
+        return <Badge className={`enum-chip enum-chip-${kind}`} key={value}>{Icon ? <Icon aria-hidden /> : null}<span>{label}</span></Badge>;
+      })}
       {values.length > limit && <span className="more-count">+{values.length - limit}</span>}
     </div>
   );
+}
+
+function CloudMark({ cloud }: { cloud: Cloud }) {
+  const { Icon, label } = cloudMeta[cloud];
+  return <span className="cloud-mark"><Icon aria-hidden className="cloud-logo" size={16} /><span>{label}</span></span>;
+}
+
+function CloudChips({ clouds }: { clouds: Cloud[] }) {
+  if (!clouds.length) return <span className="muted">—</span>;
+  return <div className="chip-list">{clouds.map(cloud => <Badge className="enum-chip cloud-chip" key={cloud}><CloudMark cloud={cloud} /></Badge>)}</div>;
+}
+
+function StatusMark({ status }: { status: string }) {
+  return <span className={`status status-${status.toLocaleLowerCase().replaceAll("_", "-")}`}>{humanizeEnum(status)}</span>;
+}
+
+function TypeMark({ type }: { type: string }) {
+  const meta = typeMeta[type];
+  if (!meta) return <span>{humanizeEnum(type)}</span>;
+  const Icon = meta.Icon;
+  return <span className="enum-mark"><Icon aria-hidden /><span>{meta.label}</span></span>;
 }
 
 function PublisherMark({ publisher }: { publisher: string | null | undefined }) {
@@ -401,9 +486,9 @@ function fieldSources(model: CatalogModel, field: keyof CatalogModel) {
 }
 
 function SourceLinks({ sources }: { sources: SourceLink[] }) {
-  if (!sources.length) return null;
+  if (sources.length < 2) return null;
   return (
-    <span className="source-links" aria-label="Sources">
+    <span className="source-links" role="group" aria-label="Sources">
       {sources.map((source, index) => (
         <a
           className="source-link"
@@ -557,7 +642,7 @@ function DetailSection({
   wide?: boolean;
   children: ReactNode;
 }) {
-  return <section className={`detail-section${wide ? " detail-section-wide" : ""}`}><h3>{title}<SourceLinks sources={sources} /></h3>{children}</section>;
+  return <section className={`detail-section${wide ? " detail-section-wide" : ""}`}><h3><SourcedText sources={sources}>{title}</SourcedText></h3>{children}</section>;
 }
 
 function AvailabilityDetails({ model }: { model: CatalogModel }) {
@@ -565,8 +650,11 @@ function AvailabilityDetails({ model }: { model: CatalogModel }) {
   if (!entries.length) return <p className="muted">No availability published.</p>;
   return <ul className="metric-list">{entries.map(([cloud, availability]) => (
     <li key={cloud}>
-      <strong>{cloud.toUpperCase()}</strong> · {titleCase(availability.status)}
-      {availability.serving_modes.length ? ` · ${availability.serving_modes.map(titleCase).join(", ")}` : ""}
+      <span className="availability-heading">
+        <CloudMark cloud={cloud as Cloud} />
+        <StatusMark status={availability.status} />
+        {availability.serving_modes.length ? <span className="availability-modes">{availability.serving_modes.map(humanizeEnum).join(", ")}</span> : null}
+      </span>
       {availability.details ? <span className="metric-detail">{availability.details}</span> : null}
     </li>
   ))}</ul>;
@@ -602,7 +690,7 @@ function PriceDetails({ model }: { model: CatalogModel }) {
     return (
       <div className="price-group" key={unit}>
         <p className="price-unit">{titleCase(unit)}</p>
-        <div className="price-table-scroll">
+        <div className="price-table-scroll" role="region" tabIndex={0} aria-label={`${titleCase(unit)} pricing table`}>
           <table className="price-table">
             <thead>
               <tr>
@@ -662,16 +750,13 @@ function ModelDetails({ model }: { model: CatalogRow }) {
       <DialogHeader>
         <p className="model-id">{model.id}</p>
         <DialogTitle><SourcedText sources={fieldSources(model, "name")}>{model.name}</SourcedText></DialogTitle>
-        <DialogDescription>
-          <span>{model.description || "No description is available."}</span>
-          <SourceLinks sources={model.description ? fieldSources(model, "description") : []} />
-        </DialogDescription>
+        <DialogDescription>{model.description || "No description is available."}</DialogDescription>
       </DialogHeader>
       <div className="model-dialog-body">
         <dl className="detail-grid">
           {([
-            ["status", "Status", titleCase(model.status)],
-            ["type", "Type", titleCase(model.type)],
+            ["status", "Status", <StatusMark status={model.status} />],
+            ["type", "Type", <TypeMark type={model.type} />],
             ["publisher", "Publisher", <PublisherMark publisher={model.publisher} />],
             ["family", "Family", model.family ?? "—"],
             ["license", "License", model.license ?? "—"],
@@ -686,19 +771,18 @@ function ModelDetails({ model }: { model: CatalogRow }) {
             <div key={label}>
               <dt>{label}</dt>
               <dd className="detail-source-row">
-                <span>{value}</span>
-                <SourceLinks sources={value === "—" ? [] : fieldSources(model, field)} />
+                <SourcedText sources={value === "—" ? [] : fieldSources(model, field)}>{value}</SourcedText>
               </dd>
             </div>
           ))}
         </dl>
         <div className="detail-columns">
-          <DetailSection title="Capabilities" sources={fieldSources(model, "capabilities")}><Chips values={activeCapabilities(model)} limit={8} /></DetailSection>
+          <DetailSection title="Capabilities" sources={fieldSources(model, "capabilities")}><Chips values={activeCapabilities(model)} kind="capability" limit={8} /></DetailSection>
           <DetailSection title="Cloud availability" sources={fieldSources(model, "availability")}><AvailabilityDetails model={model} /></DetailSection>
-          <DetailSection title="Input modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.input} /></DetailSection>
-          <DetailSection title="Output modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.output} /></DetailSection>
-          <DetailSection title="Tasks" sources={fieldSources(model, "tasks")}><Chips values={model.tasks} limit={8} /></DetailSection>
-          <DetailSection title="Use cases" sources={fieldSources(model, "use_cases")}><Chips values={model.use_cases} limit={8} /></DetailSection>
+          <DetailSection title="Input modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.input} kind="modality" /></DetailSection>
+          <DetailSection title="Output modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.output} kind="modality" /></DetailSection>
+          <DetailSection title="Tasks" sources={fieldSources(model, "tasks")}><Chips values={model.tasks} humanize limit={8} /></DetailSection>
+          <DetailSection title="Use cases" sources={fieldSources(model, "use_cases")}><Chips values={model.use_cases} humanize limit={8} /></DetailSection>
           <DetailSection title="Average price" sources={fieldSources(model, "average_price")} wide><PriceDetails model={model} /></DetailSection>
           <DetailSection title="Retirement" sources={fieldSources(model, "retirement")}>
             {model.retirement ? <ul className="metric-list">
@@ -724,10 +808,7 @@ function ModelDetails({ model }: { model: CatalogRow }) {
           <DetailSection title="Notices">
             {model.notices.length ? <ul className="metric-list">{model.notices.map((notice, index) => (
               <li key={`${notice.kind}-${index}`}>
-                <span className="metric-heading">
-                  <strong>{notice.title ?? titleCase(notice.kind)}</strong>
-                  <SourceLinks sources={notice.sources} />
-                </span>
+                <span className="metric-heading"><SourcedText sources={notice.sources}><strong>{notice.title ?? titleCase(notice.kind)}</strong></SourcedText></span>
                 <span className="metric-detail">{notice.text}</span>
               </li>
             ))}</ul> : <p className="muted">No notices published.</p>}
@@ -853,18 +934,18 @@ function App() {
 
   const headerFilterOptions = useMemo<Record<string, EnumOption[]>>(() => ({
     capabilities: makeEnumOptions(models.flatMap(activeCapabilities), value => value),
-    clouds: makeEnumOptions(models.flatMap(activeClouds), value => value.toUpperCase()),
+    clouds: makeEnumOptions(models.flatMap(activeClouds), value => cloudMeta[value as Cloud]?.label ?? humanizeEnum(value)),
     family: makeEnumOptions(models.map(model => model.family), value => value),
-    inputModalities: makeEnumOptions(models.flatMap(model => model.modalities.input)),
+    inputModalities: makeEnumOptions(models.flatMap(model => model.modalities.input), humanizeEnum),
     license: makeEnumOptions(models.map(model => model.license), value => value),
     openWeights: makeEnumOptions(["No", "Unknown", "Yes"], value => value),
-    outputModalities: makeEnumOptions(models.flatMap(model => model.modalities.output)),
+    outputModalities: makeEnumOptions(models.flatMap(model => model.modalities.output), humanizeEnum),
     publisher: makeEnumOptions(models.map(model => model.publisher), value => value),
-    servingModes: makeEnumOptions(models.flatMap(servingModes)),
-    status: makeEnumOptions(models.map(model => model.status)),
-    tasks: makeEnumOptions(models.flatMap(model => model.tasks)),
-    type: makeEnumOptions(models.map(model => model.type)),
-    useCases: makeEnumOptions(models.flatMap(model => model.use_cases)),
+    servingModes: makeEnumOptions(models.flatMap(servingModes), humanizeEnum),
+    status: makeEnumOptions(models.map(model => model.status), humanizeEnum),
+    tasks: makeEnumOptions(models.flatMap(model => model.tasks), humanizeEnum),
+    type: makeEnumOptions(models.map(model => model.type), humanizeEnum),
+    useCases: makeEnumOptions(models.flatMap(model => model.use_cases), humanizeEnum),
   }), [models]);
 
   const filtered = useMemo(() => {
@@ -904,21 +985,21 @@ function App() {
         </div>
       ),
     },
-    { id: "status", accessorKey: "status", header: "Status", filterFn: enumFilter, cell: info => <span className={`status status-${info.getValue()}`}>{titleCase(String(info.getValue()))}</span> },
+    { id: "status", accessorKey: "status", header: "Status", filterFn: enumFilter, cell: info => <StatusMark status={String(info.getValue())} /> },
     { id: "publisher", accessorKey: "publisher", header: "Publisher", filterFn: enumFilter, cell: ({ row }) => <PublisherMark publisher={row.original.publisher} /> },
     { id: "family", accessorKey: "family", header: "Family", filterFn: enumFilter, cell: info => String(info.getValue() ?? "—") },
     { id: "license", accessorKey: "license", header: "License", filterFn: enumFilter, cell: info => String(info.getValue() ?? "—") },
-    { id: "type", accessorKey: "type", header: "Type", filterFn: enumFilter, cell: info => titleCase(String(info.getValue())) },
+    { id: "type", accessorKey: "type", header: "Type", filterFn: enumFilter, cell: info => <TypeMark type={String(info.getValue())} /> },
     { id: "context", accessorFn: row => row.limits?.context, header: "Context", filterFn: minimumFilter, sortingFn: numericSorting, sortDescFirst: true, sortUndefined: "last", cell: info => formatNumber(info.getValue<number>()) },
     { id: "inputLimit", accessorFn: row => row.limits?.input, header: "Input limit", filterFn: minimumFilter, sortingFn: numericSorting, sortDescFirst: true, sortUndefined: "last", cell: info => formatNumber(info.getValue<number>()) },
     { id: "outputLimit", accessorFn: row => row.limits?.output, header: "Output limit", filterFn: minimumFilter, sortingFn: numericSorting, sortDescFirst: true, sortUndefined: "last", cell: info => formatNumber(info.getValue<number>()) },
-    { id: "clouds", accessorFn: row => activeClouds(row), header: "Clouds", filterFn: enumFilter, cell: ({ row }) => <Chips values={activeClouds(row.original).map(value => value.toUpperCase())} /> },
-    { id: "servingModes", accessorFn: row => servingModes(row), header: "Serving modes", filterFn: enumFilter, cell: ({ row }) => <Chips values={servingModes(row.original).map(titleCase)} limit={3} /> },
-    { id: "capabilities", accessorFn: row => activeCapabilities(row), header: "Capabilities", filterFn: enumFilter, cell: ({ row }) => <Chips values={activeCapabilities(row.original)} limit={3} /> },
-    { id: "inputModalities", accessorFn: row => row.modalities.input, header: "Input modalities", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.modalities.input} /> },
-    { id: "outputModalities", accessorFn: row => row.modalities.output, header: "Output modalities", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.modalities.output} /> },
-    { id: "tasks", accessorFn: row => row.tasks, header: "Tasks", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.tasks} /> },
-    { id: "useCases", accessorFn: row => row.use_cases, header: "Use cases", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.use_cases} /> },
+    { id: "clouds", accessorFn: row => activeClouds(row), header: "Clouds", filterFn: enumFilter, cell: ({ row }) => <CloudChips clouds={activeClouds(row.original)} /> },
+    { id: "servingModes", accessorFn: row => servingModes(row), header: "Serving modes", filterFn: enumFilter, cell: ({ row }) => <Chips values={servingModes(row.original)} humanize limit={3} /> },
+    { id: "capabilities", accessorFn: row => activeCapabilities(row), header: "Capabilities", filterFn: enumFilter, cell: ({ row }) => <Chips values={activeCapabilities(row.original)} kind="capability" limit={3} /> },
+    { id: "inputModalities", accessorFn: row => row.modalities.input, header: "Input modalities", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.modalities.input} kind="modality" /> },
+    { id: "outputModalities", accessorFn: row => row.modalities.output, header: "Output modalities", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.modalities.output} kind="modality" /> },
+    { id: "tasks", accessorFn: row => row.tasks, header: "Tasks", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.tasks} humanize /> },
+    { id: "useCases", accessorFn: row => row.use_cases, header: "Use cases", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.use_cases} humanize /> },
     { id: "overallRank", accessorFn: row => bestOverallRanking(row)?.rank, header: "Best overall rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestOverallRanking(row.original); return ranking ? <TableSourceLink sources={ranking.sources}><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)}</TableSourceLink> : "—"; } },
     { id: "categoryRank", accessorFn: row => bestCategoryRanking(row)?.rank, header: "Best category rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestCategoryRanking(row.original); return ranking ? <TableSourceLink sources={ranking.sources}><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)} · {titleCase(ranking.category)}</TableSourceLink> : "—"; } },
     { id: "benchmarks", accessorFn: row => topBenchmark(row)?.rank, header: "Top benchmark", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const benchmark = topBenchmark(row.original); return benchmark ? <TableSourceLink sources={benchmark.sources}><strong>#{benchmark.rank}</strong> {benchmark.name} · {benchmark.score}</TableSourceLink> : "—"; } },
@@ -1156,7 +1237,7 @@ function App() {
             </div>
             <SelectFilter label="Status" value={status} onValueChange={setStatus} allLabel="All statuses" options={statuses.map(value => ({ label: titleCase(value), value }))} />
             <SelectFilter label="Type" value={type} onValueChange={setType} allLabel="All types" options={types.map(value => ({ label: titleCase(value), value }))} />
-            <SelectFilter label="Cloud" value={cloud} onValueChange={setCloud} allLabel="All clouds" options={["aws", "azure", "gcp"].map(value => ({ label: value.toUpperCase(), value }))} />
+            <SelectFilter label="Cloud" value={cloud} onValueChange={setCloud} allLabel="All clouds" options={(Object.keys(cloudMeta) as Cloud[]).map(value => ({ label: cloudMeta[value].label, value }))} />
             <SelectFilter label="Capability" value={capability} onValueChange={setCapability} allLabel="All capabilities" options={Object.entries(capabilityLabels).map(([value, label]) => ({ label, value }))} />
             <SelectFilter label="Weights" value={weights} onValueChange={setWeights} allLabel="All models" options={[{ label: "Open weights", value: "open" }, { label: "Closed weights", value: "closed" }]} />
           </section>
