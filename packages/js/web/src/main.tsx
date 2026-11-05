@@ -1190,9 +1190,9 @@ function App() {
             <div><h1>Model Catalog</h1><p>Databricks serving models</p></div>
           </div>
           <nav className="top-actions" aria-label="Catalog actions">
-            <Button asChild variant="outline" size="sm"><a href="catalog.json" download><Download /> Catalog JSON</a></Button>
             <span className="schema-version">v{catalog?.schema_version ?? "—"}</span>
             <Button asChild variant="ghost" size="icon"><a href="https://github.com/reggie-db/dbx-model-catalog" aria-label="Open the GitHub repository" title="GitHub repository"><Github /></a></Button>
+            <Button asChild variant="ghost" size="icon"><a href="catalog.json" download aria-label="Download catalog JSON" title="Download catalog JSON"><Download /></a></Button>
           </nav>
         </header>
 
