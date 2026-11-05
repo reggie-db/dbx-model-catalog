@@ -17,11 +17,6 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Table,
   TableBody,
   TableCell,
@@ -528,33 +523,6 @@ function TableSourceLink({ children, sources }: { children: ReactNode; sources: 
   );
 }
 
-function SelectFilter({
-  label,
-  value,
-  onValueChange,
-  options,
-  allLabel,
-}: {
-  label: string;
-  value: string;
-  onValueChange: (value: string) => void;
-  options: Array<{ label: string; value: string }>;
-  allLabel: string;
-}) {
-  return (
-    <div className="filter-field">
-      <Label>{label}</Label>
-      <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger aria-label={label}><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">{allLabel}</SelectItem>
-          {options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
 function HeaderFilter({
   column,
   label,
@@ -827,11 +795,6 @@ function App() {
   const [search, setSearch] = useState("");
   const [searchResult, setSearchResult] = useState<{ query: string; records: CatalogModelRecord[] } | null>(null);
   const [searching, setSearching] = useState(false);
-  const [status, setStatus] = useState("all");
-  const [type, setType] = useState("all");
-  const [cloud, setCloud] = useState("all");
-  const [capability, setCapability] = useState("all");
-  const [weights, setWeights] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "model", desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
@@ -929,9 +892,6 @@ function App() {
     }));
   }, [hasSearch, models, normalizedSearch, searchResult]);
 
-  const statuses = useMemo(() => [...new Set(models.map(model => model.status))].sort(), [models]);
-  const types = useMemo(() => [...new Set(models.map(model => model.type))].sort(), [models]);
-
   const headerFilterOptions = useMemo<Record<string, EnumOption[]>>(() => ({
     capabilities: makeEnumOptions(models.flatMap(activeCapabilities), value => value),
     clouds: makeEnumOptions(models.flatMap(activeClouds), value => cloudMeta[value as Cloud]?.label ?? humanizeEnum(value)),
@@ -947,16 +907,6 @@ function App() {
     type: makeEnumOptions(models.map(model => model.type), humanizeEnum),
     useCases: makeEnumOptions(models.flatMap(model => model.use_cases), humanizeEnum),
   }), [models]);
-
-  const filtered = useMemo(() => {
-    return candidates.filter(model =>
-      (status === "all" || model.status === status) &&
-      (type === "all" || model.type === type) &&
-      (cloud === "all" || activeClouds(model).includes(cloud as Cloud)) &&
-      (capability === "all" || activeCapabilities(model).includes(capabilityLabels[capability as CapabilityName])) &&
-      (weights === "all" || (weights === "open" ? model.open_weights === true : model.open_weights !== true)),
-    );
-  }, [candidates, capability, cloud, status, type, weights]);
 
   const columns = useMemo<ColumnDef<CatalogRow>[]>(() => [
     {
@@ -1034,7 +984,7 @@ function App() {
   }, [columnOrder, columnSizing, columnVisibility]);
 
   const table = useReactTable({
-    data: filtered,
+    data: candidates,
     columns,
     state: { sorting, columnFilters, columnOrder, columnSizing, columnVisibility },
     onSortingChange: setSorting,
@@ -1186,11 +1136,6 @@ function App() {
 
   const reset = () => {
     setSearch("");
-    setStatus("all");
-    setType("all");
-    setCloud("all");
-    setCapability("all");
-    setWeights("all");
     setColumnFilters([]);
     setSorting([{ id: "model", desc: false }]);
     setColumnOrder(defaultColumnOrder);
@@ -1230,16 +1175,11 @@ function App() {
             ].map(([label, value]) => <div className="summary-item" key={label}><strong>{value}</strong><span>{label}</span></div>)}
           </section>
 
-          <section className="filters" aria-label="Catalog filters">
+          <section className="catalog-search" aria-label="Catalog search">
             <div className="search-field">
               <Label htmlFor="catalog-search">Search</Label>
               <div className="search-control"><Search aria-hidden="true" /><Input id="catalog-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, ID, publisher, family, task…" /></div>
             </div>
-            <SelectFilter label="Status" value={status} onValueChange={setStatus} allLabel="All statuses" options={statuses.map(value => ({ label: titleCase(value), value }))} />
-            <SelectFilter label="Type" value={type} onValueChange={setType} allLabel="All types" options={types.map(value => ({ label: titleCase(value), value }))} />
-            <SelectFilter label="Cloud" value={cloud} onValueChange={setCloud} allLabel="All clouds" options={(Object.keys(cloudMeta) as Cloud[]).map(value => ({ label: cloudMeta[value].label, value }))} />
-            <SelectFilter label="Capability" value={capability} onValueChange={setCapability} allLabel="All capabilities" options={Object.entries(capabilityLabels).map(([value, label]) => ({ label, value }))} />
-            <SelectFilter label="Weights" value={weights} onValueChange={setWeights} allLabel="All models" options={[{ label: "Open weights", value: "open" }, { label: "Closed weights", value: "closed" }]} />
           </section>
 
           <section className="catalog-card" aria-busy={(!catalog && !error) || searching} aria-live="polite">
