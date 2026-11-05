@@ -224,6 +224,8 @@ def build_model_catalog(sources: CatalogSyncSources) -> ModelCatalog:
             )
             _add_availability(model, cloud, documented)
             models[model_id] = model
+    _add_pricing(models, sources.databricks.data.pricing)
+    _remove_ambiguous_aliases(models)
     updated_at = max(
         sources.models_dev.fetched_at,
         sources.model_params.fetched_at,
@@ -234,6 +236,183 @@ def build_model_catalog(sources: CatalogSyncSources) -> ModelCatalog:
     return ModelCatalog.model_validate(
         {"schema_version": MODEL_CATALOG_SCHEMA_VERSION, "updated_at": updated_at, "models": models}
     )
+
+
+def _add_pricing(
+    models: dict[str, dict[str, Any]],
+    pricing: Any,
+) -> None:
+    unit_priority = (
+        "per_million_tokens",
+        "per_hour_per_50_model_units",
+        "per_hour",
+    )
+    for model_id, model in models.items():
+        scores = [
+            (_pricing_match_score(model_id, model, entry), entry)
+            for entry in pricing.entries
+        ]
+        best_score = max((score for score, _ in scores), default=0)
+        if not best_score:
+            continue
+        matches = [entry for score, entry in scores if score == best_score]
+        selected_unit = next(
+            (
+                unit
+                for unit in unit_priority
+                if any(entry.get("unit") == unit for entry in matches)
+            ),
+            None,
+        )
+        if selected_unit is None:
+            continue
+        cloud_prices: dict[str, dict[str, Any]] = {}
+        for cloud in model["availability"]:
+            cloud_matches = [
+                entry
+                for entry in matches
+                if entry.get("unit") == selected_unit
+                and cloud in entry.get("clouds", ())
+            ]
+            if not cloud_matches:
+                continue
+            dbu_rates: dict[str, float] = {}
+            for entry in cloud_matches:
+                dbu_rates.update(entry.get("rates", {}))
+            if not dbu_rates:
+                continue
+            currencies: dict[str, Any] = {
+                "DBU": {"unit": selected_unit, "rates": dbu_rates}
+            }
+            override = next(
+                (
+                    entry.get("usd_per_dbu", {}).get(cloud)
+                    for entry in cloud_matches
+                    if entry.get("usd_per_dbu", {}).get(cloud) is not None
+                ),
+                None,
+            )
+            usd_per_dbu = override or pricing.usd_per_dbu.get(cloud)
+            if usd_per_dbu is not None:
+                currencies["USD"] = {
+                    "unit": selected_unit,
+                    "rates": {
+                        name: round(value * usd_per_dbu, 4)
+                        for name, value in dbu_rates.items()
+                    },
+                }
+            cloud_prices[cloud] = currencies
+        model["price"] = cloud_prices
+        model["average_price"] = _average_prices(cloud_prices)
+
+
+def _pricing_match_score(
+    model_id: str,
+    model: dict[str, Any],
+    entry: dict[str, Any],
+) -> int:
+    publisher = model.get("publisher")
+    identities = {
+        identity
+        for value in [model_id, model.get("name"), *model.get("aliases", [])]
+        if value
+        for identity in _pricing_identities(str(value), publisher)
+    }
+    score = 0
+    for name in entry.get("names", ()):
+        for candidate in _pricing_identities(str(name), None):
+            if candidate in identities:
+                score = max(score, 3)
+                continue
+            for identity in identities:
+                release_date = model.get("release_date")
+                month_day = (
+                    release_date.strftime("%m%d")
+                    if hasattr(release_date, "strftime")
+                    else str(release_date)[5:10].replace("-", "")
+                    if release_date
+                    else None
+                )
+                if month_day and candidate == f"{identity}-{month_day}":
+                    score = max(score, 3)
+                    continue
+                if _pricing_token_signature(candidate) == _pricing_token_signature(
+                    identity
+                ):
+                    score = max(score, 2)
+                    continue
+                if not identity.startswith(f"{candidate}-"):
+                    continue
+                suffix = identity.removeprefix(f"{candidate}-")
+                if re.fullmatch(r"\d{4}|\d{8}", suffix):
+                    score = max(score, 2)
+                elif suffix == "0" and len(re.findall(r"\d+", candidate)) >= 2:
+                    score = max(score, 2)
+                elif not re.search(r"\d", candidate):
+                    score = max(score, 1)
+    return score
+
+
+def _pricing_identities(value: str, publisher: str | None) -> set[str]:
+    identity = normalize_model_identity(value)
+    identities = {identity}
+    if publisher:
+        prefix = normalize_model_identity(publisher)
+        if identity.startswith(f"{prefix}-"):
+            identities.add(identity.removeprefix(f"{prefix}-"))
+    simplified = set()
+    for candidate in identities:
+        candidate = re.sub(r"-(?:instruct|preview|legacy|next|en)(?=-|$)", "", candidate)
+        candidate = re.sub(r"-a-\d+-b(?=-|$)", "", candidate)
+        candidate = re.sub(r"(?<=-\d)-0(?=-[a-z])", "", candidate)
+        candidate = re.sub(r"-{2,}", "-", candidate).strip("-")
+        simplified.add(candidate)
+    return identities | simplified
+
+
+def _pricing_token_signature(value: str) -> tuple[str, ...]:
+    return tuple(sorted(value.split("-")))
+
+
+def _remove_ambiguous_aliases(models: dict[str, dict[str, Any]]) -> None:
+    owners: dict[str, list[str]] = {}
+    for model_id, model in models.items():
+        for alias in model.get("aliases", []):
+            owners.setdefault(alias.casefold(), []).append(model_id)
+    ambiguous = {alias for alias, model_ids in owners.items() if len(model_ids) > 1}
+    if not ambiguous:
+        return
+    for model in models.values():
+        model["aliases"] = [
+            alias for alias in model.get("aliases", []) if alias.casefold() not in ambiguous
+        ]
+
+
+def _average_prices(
+    cloud_prices: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    averages: dict[str, dict[str, Any]] = {}
+    for currency in ("DBU", "USD"):
+        prices = [
+            currencies[currency]
+            for currencies in cloud_prices.values()
+            if currency in currencies
+        ]
+        if not prices:
+            continue
+        unit = prices[0]["unit"]
+        rates = {
+            name: round(
+                sum(price["rates"][name] for price in prices if name in price["rates"])
+                / sum(name in price["rates"] for price in prices),
+                6,
+            )
+            for name in dict.fromkeys(
+                name for price in prices for name in price["rates"]
+            )
+        }
+        averages[currency] = {"unit": unit, "rates": rates}
+    return averages
 
 
 def normalize_model_identity(value: str) -> str:
@@ -258,18 +437,76 @@ def _best_models_dev_match(
         for value in (documented.name, documented.endpoint_name, documented.service_name)
         if value
     }
-    matches = []
+    matches: list[tuple[int, int, ModelsDevProvider, ModelsDevModel]] = []
     for provider, model in records:
-        candidates = {normalize_model_identity(model.id), normalize_model_identity(model.name)}
-        if model.canonical_model_id:
-            candidates.add(normalize_model_identity(model.canonical_model_id.split("/")[-1]))
-        score = max((100 if left == right else 50 if left.endswith(right) or right.endswith(left) else 0) for left in identities for right in candidates)
+        direct_candidates = {
+            normalize_model_identity(model.id),
+            normalize_model_identity(model.name),
+        }
+        canonical_candidates = (
+            {normalize_model_identity(model.canonical_model_id.split("/")[-1])}
+            if model.canonical_model_id
+            else set()
+        )
+        score = max(
+            _identity_match_score(identities, direct_candidates, exact=4, partial=2),
+            _identity_match_score(identities, canonical_candidates, exact=3, partial=1),
+        )
         if score:
-            matches.append((score, provider, model))
+            matches.append(
+                (score, _provider_priority(documented, provider), provider, model)
+            )
     if not matches:
         return None
-    _, provider, model = max(matches, key=lambda item: item[0])
+    _, _, provider, model = min(
+        matches,
+        key=lambda item: (
+            -item[0],
+            -item[1],
+            item[2].id.casefold(),
+            item[3].id.casefold(),
+        ),
+    )
     return provider, model
+
+
+def _identity_match_score(
+    identities: set[str],
+    candidates: set[str],
+    *,
+    exact: int,
+    partial: int,
+) -> int:
+    if not candidates:
+        return 0
+    return max(
+        (
+            exact
+            if left == right
+            else partial
+            if left.endswith(right) or right.endswith(left)
+            else 0
+        )
+        for left in identities
+        for right in candidates
+    )
+
+
+def _provider_priority(
+    documented: DatabricksSupportedModel,
+    provider: ModelsDevProvider,
+) -> int:
+    provider_id = provider.id.casefold()
+    if provider_id == "databricks":
+        return 2
+    publisher = _model_publisher(documented, None)
+    if publisher is None:
+        return 0
+    if PUBLISHER_NAMESPACES.get(provider_id) == publisher:
+        return 1
+    return int(
+        normalize_model_identity(provider.name) == normalize_model_identity(publisher)
+    )
 
 
 def _catalog_model(
@@ -610,9 +847,14 @@ def _model_family(documented: DatabricksSupportedModel) -> str | None:
     return None
 
 
-def _add_availability(model: dict[str, Any], cloud: str, documented: DatabricksSupportedModel) -> None:
+def _add_availability(
+    model: dict[str, Any],
+    cloud: str,
+    documented: DatabricksSupportedModel,
+) -> None:
+    status = _status(documented.status) if documented.status else model["status"]
     model["availability"][cloud] = {
-        "status": _status(documented.status),
+        "status": status,
         "serving_modes": ["pay_per_token"],
     }
 

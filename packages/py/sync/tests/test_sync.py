@@ -16,13 +16,20 @@ from dbx_model_catalog_sync import (
     SyncResult,
     build_model_catalog,
     normalize_model_identity,
+    parse_databricks_pricing_catalog,
     parse_databricks_supported_models_page,
     parse_flexible_date,
     stringify_json,
     sync_client_cache_path,
     serialize_sources,
 )
-from dbx_model_catalog_sync.catalog import CatalogSyncSources
+from dbx_model_catalog_sync.catalog import (
+    CatalogSyncSources,
+    _best_models_dev_match,
+    _models_dev_records,
+    _pricing_match_score,
+    _remove_ambiguous_aliases,
+)
 from dbx_model_catalog_sync.clients import _hf_token
 from dbx_model_catalog_sync.models import DatabricksCatalogData, DatabricksPricingCatalog
 
@@ -77,21 +84,100 @@ def test_supported_models_parser_normalizes_notices() -> None:
     page = parse_databricks_supported_models_page(
         """
         <h1>Supported models</h1>
-        <h2 id="gpt-test">OpenAI GPT Test</h2>
+        <h2 id="gpt-test">OpenAI GPT Test<a href="#gpt-test">​</a></h2>
         <p>Endpoint name: <code>databricks-gpt-test</code></p>
         <p>Supported inputs: Text, Images</p>
-        <div class="IMPORTANT"><p>Important</p><p>Follow the usage policy.</p></div>
+        <div class="IMPORTANT"><div><p>Important</p><p>Follow the <a>usage policy</a>.<p>Cache details.</p></p></div></div>
+        <p>Availability: Pay-per-token</p>
+        <p>General <a>model details</a>.</p>
         """,
         "https://example.com/models",
     )
 
+    assert page.models[0].name == "OpenAI GPT Test"
     assert page.models[0].endpoint_name == "databricks-gpt-test"
     assert page.models[0].supported_inputs == ["Text", "Images"]
+    assert page.models[0].description == "Availability: Pay-per-token. General model details."
     assert page.models[0].notices[0].model_dump() == {
         "kind": "important",
-        "text": "Follow the usage policy.",
+        "text": "Follow the usage policy. Cache details.",
         "links": [],
     }
+
+
+def test_models_dev_matching_prefers_databricks_then_owning_publisher() -> None:
+    documented = parse_databricks_supported_models_page(
+        """
+        <h1>Supported models</h1>
+        <h2 id="gpt-test">OpenAI GPT Test</h2>
+        <p>Endpoint name: databricks-gpt-test</p>
+        """,
+        "https://example.com/models",
+    ).models[0]
+
+    def model(model_id: str, canonical_model_id: str | None = None) -> dict[str, object]:
+        return {
+            "id": model_id,
+            "name": model_id,
+            "description": "Model description",
+            "attachment": True,
+            "reasoning": True,
+            "tool_call": True,
+            "release_date": "2026-10-01",
+            "last_updated": "2026-10-30",
+            "modalities": {"input": ["text"], "output": ["text"]},
+            "open_weights": False,
+            "limit": {"context": 200000, "output": 32000},
+            "canonical_model_id": canonical_model_id,
+        }
+
+    data = ModelsDevSyncClient.model.validate_python(
+        {
+            "gateway": {
+                "id": "gateway",
+                "env": [],
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Gateway",
+                "doc": "https://example.com/gateway",
+                "models": {
+                    "variant": model("openai/gpt-test-pro", "openai/gpt-test"),
+                },
+            },
+            "openai": {
+                "id": "openai",
+                "env": [],
+                "npm": "@ai-sdk/openai",
+                "name": "OpenAI",
+                "doc": "https://example.com/openai",
+                "models": {"base": model("gpt-test")},
+            },
+            "databricks": {
+                "id": "databricks",
+                "env": [],
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Databricks",
+                "doc": "https://example.com/databricks",
+                "models": {"base": model("databricks-gpt-test")},
+            },
+        }
+    )
+
+    provider, matched = _best_models_dev_match(
+        documented, _models_dev_records(data)
+    ) or (None, None)
+    assert provider is not None and provider.id == "databricks"
+    assert matched is not None and matched.id == "databricks-gpt-test"
+
+    provider, matched = _best_models_dev_match(
+        documented,
+        [
+            record
+            for record in _models_dev_records(data)
+            if record[0].id != "databricks"
+        ],
+    ) or (None, None)
+    assert provider is not None and provider.id == "openai"
+    assert matched is not None and matched.id == "gpt-test"
 
 
 def test_supported_models_parser_ignores_wrappers_and_non_model_sections() -> None:
@@ -108,6 +194,145 @@ def test_supported_models_parser_ignores_wrappers_and_non_model_sections() -> No
 
     assert [model.name for model in page.models] == ["OpenAI GPT Test"]
     assert page.models[0].endpoint_name == "databricks-gpt-test"
+
+
+def test_pricing_parser_combines_page_rates_with_cloud_sku_prices() -> None:
+    foundation_url = "https://www.databricks.com/product/pricing/foundation-model-serving"
+    proprietary_url = "https://www.databricks.com/product/pricing/proprietary-foundation-model-serving"
+    pages = {
+        foundation_url: {
+            "section": {
+                "__typename": "Drupal_ParagraphPricingRichtext",
+                "fieldDescription": {
+                    "processed": """
+                    <h3>Pay Per Token</h3>
+                    <table>
+                      <thead><tr><th rowspan="2">Model</th><th colspan="2">Pay Per Token (DBU Per 1M Tokens)</th></tr>
+                      <tr><th>Input</th><th>Output</th></tr></thead>
+                      <tbody><tr><td>GLM-5.2, 5.3</td><td>20</td><td>62.857</td></tr></tbody>
+                    </table>
+                    """
+                },
+                "fieldItem": {
+                    "entity": {
+                        "fieldPricingClouds": ["aws", "google"],
+                        "fieldPricingVendors": [],
+                    }
+                },
+            }
+        },
+        proprietary_url: {
+            "section": {
+                "__typename": "Drupal_ParagraphPricingRichtext",
+                "fieldDescription": {
+                    "processed": """
+                    <h3>Pay Per Token</h3>
+                    <table>
+                      <thead><tr><th rowspan="2">Model</th><th rowspan="2"></th><th colspan="2">Standard Pay Per Token (DBU Per 1M Tokens)</th></tr>
+                      <tr><th>Input</th><th>Output</th></tr></thead>
+                      <tbody>
+                        <tr><td rowspan="2">GPT-6.1 Sol</td><td>Short context</td><td>28.571</td><td>142.857</td></tr>
+                        <tr><td>Long context</td><td>57.143</td><td>214.286</td></tr>
+                      </tbody>
+                    </table>
+                    """
+                },
+                "fieldItem": {
+                    "entity": {
+                        "fieldPricingClouds": [],
+                        "fieldPricingVendors": ["openai"],
+                    }
+                },
+            }
+        },
+    }
+    cards = {
+        "fmServingSku": {
+            "AWS": {"GLM-5.2": {"US East": "0.07"}},
+            "Azure": {"GLM-5.2": {"East US": "0.08"}},
+            "GCP": {"GLM-5.2": {"US (Iowa)": "0.09"}},
+        },
+        "premium": {
+            "AWS": {"prop_model_serving": {"OpenAI": "0.07"}},
+            "Azure": {"prop_model_serving": {"OpenAI": "0.08"}},
+            "GCP": {"prop_model_serving": {"OpenAI": "0.09"}},
+        },
+    }
+
+    pricing = parse_databricks_pricing_catalog(pages, cards)
+
+    assert pricing.default_regions == {
+        "aws": "US East",
+        "azure": "East US",
+        "gcp": "US (Iowa)",
+    }
+    assert pricing.usd_per_dbu == {"aws": 0.07, "azure": 0.08, "gcp": 0.09}
+    glm = next(entry for entry in pricing.entries if "GLM-5.3" in entry["names"])
+    assert glm["clouds"] == ["aws", "gcp"]
+    assert glm["rates"] == {"input": 20.0, "output": 62.857}
+    gpt = next(entry for entry in pricing.entries if entry["names"] == ["GPT-6.1 Sol"])
+    assert gpt["rates"] == {
+        "short_context_input": 28.571,
+        "short_context_output": 142.857,
+        "long_context_input": 57.143,
+        "long_context_output": 214.286,
+    }
+    assert gpt["usd_per_dbu"] == {"aws": 0.07, "azure": 0.08, "gcp": 0.09}
+
+
+def test_pricing_matching_handles_equivalent_names_without_crossing_versions() -> None:
+    base = {
+        "aliases": [],
+        "publisher": "Google",
+        "release_date": None,
+    }
+    assert _pricing_match_score(
+        "databricks-gemini-3-flash",
+        {**base, "name": "Google Gemini 3 Flash"},
+        {"names": ["Gemini 3.0 Flash"]},
+    ) == 3
+    assert _pricing_match_score(
+        "databricks-qwen3-embedding-0-6b",
+        {
+            **base,
+            "name": "Alibaba Cloud Qwen3-Embedding-0.6B",
+            "publisher": "Alibaba Cloud",
+        },
+        {"names": ["Qwen 3 0.6B Embedding"]},
+    ) == 2
+    assert _pricing_match_score(
+        "databricks-deepseek-v4-1-flash",
+        {
+            **base,
+            "name": "DeepSeek V4.1 Flash",
+            "publisher": "DeepSeek",
+            "release_date": datetime(2026, 9, 10, tzinfo=UTC).date(),
+        },
+        {"names": ["DeepSeek V4.1 Flash (0910)"]},
+    ) == 3
+    assert _pricing_match_score(
+        "databricks-kimi-k3-1-pro",
+        {
+            **base,
+            "name": "Moonshot AI Kimi K3.1 Pro",
+            "publisher": "Moonshot AI",
+        },
+        {"names": ["Kimi K3"]},
+    ) == 0
+
+
+def test_ambiguous_aliases_are_removed_from_all_models() -> None:
+    models = {
+        "one": {"aliases": ["shared", "one-only"]},
+        "two": {"aliases": ["shared", "two-only"]},
+    }
+
+    _remove_ambiguous_aliases(models)
+
+    assert models == {
+        "one": {"aliases": ["one-only"]},
+        "two": {"aliases": ["two-only"]},
+    }
 
 
 def test_builds_catalog_from_python_sources() -> None:
@@ -132,6 +357,7 @@ def test_builds_catalog_from_python_sources() -> None:
                         "release_date": "2026-10-01",
                         "last_updated": "2026-10-30",
                         "family": "gpt",
+                        "status": "beta",
                         "modalities": {"input": ["text", "pdf"], "output": ["text"]},
                         "open_weights": False,
                         "limit": {"context": 200000, "output": 32000},
@@ -146,7 +372,22 @@ def test_builds_catalog_from_python_sources() -> None:
         "https://example.com",
     )
     databricks = DatabricksCatalogData(
-        pricing=DatabricksPricingCatalog(),
+        pricing=DatabricksPricingCatalog(
+            defaultRegions={"aws": "US East", "azure": "East US", "gcp": "US Iowa"},
+            usdPerDbu={"aws": 0.07, "azure": 0.08, "gcp": 0.09},
+            entries=[
+                {
+                    "names": ["GPT Test"],
+                    "clouds": ["aws", "azure", "gcp"],
+                    "vendor": "openai",
+                    "mode": "pay_per_token",
+                    "unit": "per_million_tokens",
+                    "rates": {"input": 2.0, "output": 6.0},
+                    "usd_per_dbu": {"aws": 0.07, "azure": 0.08, "gcp": 0.09},
+                    "source_url": "https://example.com/pricing",
+                }
+            ],
+        ),
         cloudProviders={
             cloud: {
                 "cloudProvider": cloud,
@@ -250,9 +491,14 @@ def test_builds_catalog_from_python_sources() -> None:
     assert model.aliases == ["openai/gpt-test", "gpt-test"]
     assert model.family == "gpt"
     assert model.publisher == "OpenAI"
+    assert model.status == "beta"
     assert model.modalities.input == ["text", "application/pdf"]
     assert model.limits.context == 200000
     assert set(model.availability) == {"aws", "azure", "gcp"}
+    assert {value.status for value in model.availability.values()} == {"beta"}
+    assert model.price["aws"]["DBU"].rates == {"input": 2.0, "output": 6.0}
+    assert model.price["azure"]["USD"].rates == {"input": 0.16, "output": 0.48}
+    assert model.average_price["USD"].rates == {"input": 0.16, "output": 0.48}
     assert model.rankings[0].model_dump(mode="json", exclude_none=True) == {
         "domain": "agent",
         "category": "overall",

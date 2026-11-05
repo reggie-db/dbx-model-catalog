@@ -52,7 +52,7 @@ WebSocket.
 ```sh
 bun run chanx-model-catalog models gpt
 bun run chanx-model-catalog model-feed gpt
-bun run chanx-model-catalog models gpt --url ws://127.0.0.1:8000
+bun run chanx-model-catalog models gpt --url ws://127.0.0.1:8787
 ```
 
 Library use follows the same rule:
@@ -71,9 +71,10 @@ bun run serve
 ```
 
 This builds the browser and starts the Python server at
-`http://127.0.0.1:8000`. The browser connects to the same origin over
-WebSocket. GitHub Pages cannot host the server, so the deployed static build
-reads its colocated `catalog.json` instead.
+`http://127.0.0.1:8787`. The browser connects to the same origin over
+WebSocket. The serve script points the server at the same local `catalog.json`
+that the browser downloads. GitHub Pages cannot host the server, so the
+deployed static build reads its colocated catalog directly instead.
 
 The server and local IPC worker load the published catalog by default. Set
 `DBX_MODEL_CATALOG_PATH` only when an explicit local catalog artifact is needed.

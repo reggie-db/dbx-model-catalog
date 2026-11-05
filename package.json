@@ -18,7 +18,7 @@
     "build:node": "bun packages/js/node/scripts/build.ts",
     "build:web": "bun packages/js/web/scripts/build.ts",
     "check": "bun run generate && uv run --project packages/py/common pytest packages/py/common/tests && uv run --project packages/py/sync pytest packages/py/sync/tests && bun test packages/js/node/test && bun run typecheck && bun run build:web && uv build --package dbx-model-catalog",
-    "serve": "bun run build:web && uv run --project packages/py/server uvicorn dbx_model_catalog_server.app:app --host 127.0.0.1 --port 8000",
+    "serve": "bun run build:web && DBX_MODEL_CATALOG_PATH=packages/js/web/catalog.json uv run --project packages/py/server uvicorn dbx_model_catalog_server.app:app --host 127.0.0.1 --port 8787",
     "chanx-model-catalog": "bun packages/js/node/src/cli.ts",
     "sync": "bun packages/js/sync/src/cli.ts",
     "catalog:publish": "bun packages/js/sync/src/cli.ts --output-directory packages/js/web"

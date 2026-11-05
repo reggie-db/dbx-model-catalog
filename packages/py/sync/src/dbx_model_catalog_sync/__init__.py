@@ -19,6 +19,7 @@ from .clients import (
     ModelsDevSyncClient,
     SyncClient,
     SyncClientOptions,
+    parse_databricks_pricing_catalog,
     parse_databricks_supported_models_page,
     sync_client_cache_path,
 )
@@ -65,6 +66,7 @@ __all__ = [
     "SyncResult",
     "build_model_catalog",
     "normalize_model_identity",
+    "parse_databricks_pricing_catalog",
     "parse_databricks_supported_models_page",
     "parse_flexible_date",
     "publish_catalog",

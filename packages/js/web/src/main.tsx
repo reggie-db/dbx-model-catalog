@@ -467,56 +467,58 @@ function ModelDetails({ model }: { model: CatalogRow }) {
         <DialogTitle>{model.name}</DialogTitle>
         <DialogDescription>{model.description || "No description is available."}</DialogDescription>
       </DialogHeader>
-      <dl className="detail-grid">
-        {([
-          ["Status", titleCase(model.status)],
-          ["Type", titleCase(model.type)],
-          ["Publisher", <PublisherMark publisher={model.publisher} />],
-          ["Family", model.family ?? "—"],
-          ["License", model.license ?? "—"],
-          ["Open weights", model.open_weights == null ? "—" : model.open_weights ? "Yes" : "No"],
-          ["Context", model.limits?.context ? `${formatNumber(model.limits.context)} tokens` : "—"],
-          ["Input limit", model.limits?.input ? `${formatNumber(model.limits.input)} tokens` : "—"],
-          ["Output limit", model.limits?.output ? `${formatNumber(model.limits.output)} tokens` : "—"],
-          ["Released", formatDate(model.release_date)],
-          ["Updated", formatDate(model.last_updated)],
-          ["Knowledge cutoff", formatDate(model.knowledge_cutoff)],
-        ] satisfies Array<[string, ReactNode]>).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
-      </dl>
-      <div className="detail-columns">
-        <DetailSection title="Capabilities"><Chips values={activeCapabilities(model)} limit={8} /></DetailSection>
-        <DetailSection title="Cloud availability"><AvailabilityDetails model={model} /></DetailSection>
-        <DetailSection title="Input modalities"><Chips values={model.modalities.input} /></DetailSection>
-        <DetailSection title="Output modalities"><Chips values={model.modalities.output} /></DetailSection>
-        <DetailSection title="Tasks"><Chips values={model.tasks} limit={8} /></DetailSection>
-        <DetailSection title="Use cases"><Chips values={model.use_cases} limit={8} /></DetailSection>
-        <DetailSection title="Average price"><PriceDetails model={model} /></DetailSection>
-        <DetailSection title="Retirement">
-          {model.retirement ? <ul className="metric-list">
-            {model.retirement.schedules.map(schedule => <li key={schedule.offering}><strong>{schedule.offering}</strong> · {schedule.dates.map(formatDate).join(", ")}</li>)}
-            {(model.retirement.replacement || model.retirement.replacement_name) && <li><strong>Replacement</strong> · {model.retirement.replacement ?? model.retirement.replacement_name}</li>}
-          </ul> : <p className="muted">No retirement scheduled.</p>}
-        </DetailSection>
-        <DetailSection title="Rankings">
-          {rankings.length ? <ul className="metric-list">{rankings.map(ranking => (
-            <li key={`${ranking.domain}-${ranking.category}-${ranking.rank}`}>
-              <strong>#{ranking.rank}</strong> {ranking.domain} · {ranking.category}
-            </li>
-          ))}</ul> : <p className="muted">No rankings published.</p>}
-        </DetailSection>
-        <DetailSection title="Benchmarks">
-          {benchmarks.length ? <ul className="metric-list">{benchmarks.map(benchmark => (
-            <li key={`${benchmark.name}-${benchmark.rank}`}>
-              <strong>#{benchmark.rank}</strong> {benchmark.name} · {benchmark.score}
-            </li>
-          ))}</ul> : <p className="muted">No benchmarks published.</p>}
-        </DetailSection>
-        <DetailSection title="Aliases"><Chips values={model.aliases} limit={12} /></DetailSection>
-        <DetailSection title="Notices">
-          {model.notices.length ? <ul className="metric-list">{model.notices.map((notice, index) => (
-            <li key={`${notice.kind}-${index}`}><strong>{notice.title ?? titleCase(notice.kind)}</strong><span className="metric-detail">{notice.text}</span></li>
-          ))}</ul> : <p className="muted">No notices published.</p>}
-        </DetailSection>
+      <div className="model-dialog-body">
+        <dl className="detail-grid">
+          {([
+            ["Status", titleCase(model.status)],
+            ["Type", titleCase(model.type)],
+            ["Publisher", <PublisherMark publisher={model.publisher} />],
+            ["Family", model.family ?? "—"],
+            ["License", model.license ?? "—"],
+            ["Open weights", model.open_weights == null ? "—" : model.open_weights ? "Yes" : "No"],
+            ["Context", model.limits?.context ? `${formatNumber(model.limits.context)} tokens` : "—"],
+            ["Input limit", model.limits?.input ? `${formatNumber(model.limits.input)} tokens` : "—"],
+            ["Output limit", model.limits?.output ? `${formatNumber(model.limits.output)} tokens` : "—"],
+            ["Released", formatDate(model.release_date)],
+            ["Updated", formatDate(model.last_updated)],
+            ["Knowledge cutoff", formatDate(model.knowledge_cutoff)],
+          ] satisfies Array<[string, ReactNode]>).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+        </dl>
+        <div className="detail-columns">
+          <DetailSection title="Capabilities"><Chips values={activeCapabilities(model)} limit={8} /></DetailSection>
+          <DetailSection title="Cloud availability"><AvailabilityDetails model={model} /></DetailSection>
+          <DetailSection title="Input modalities"><Chips values={model.modalities.input} /></DetailSection>
+          <DetailSection title="Output modalities"><Chips values={model.modalities.output} /></DetailSection>
+          <DetailSection title="Tasks"><Chips values={model.tasks} limit={8} /></DetailSection>
+          <DetailSection title="Use cases"><Chips values={model.use_cases} limit={8} /></DetailSection>
+          <DetailSection title="Average price"><PriceDetails model={model} /></DetailSection>
+          <DetailSection title="Retirement">
+            {model.retirement ? <ul className="metric-list">
+              {model.retirement.schedules.map(schedule => <li key={schedule.offering}><strong>{schedule.offering}</strong> · {schedule.dates.map(formatDate).join(", ")}</li>)}
+              {(model.retirement.replacement || model.retirement.replacement_name) && <li><strong>Replacement</strong> · {model.retirement.replacement ?? model.retirement.replacement_name}</li>}
+            </ul> : <p className="muted">No retirement scheduled.</p>}
+          </DetailSection>
+          <DetailSection title="Rankings">
+            {rankings.length ? <ul className="metric-list">{rankings.map(ranking => (
+              <li key={`${ranking.domain}-${ranking.category}-${ranking.rank}`}>
+                <strong>#{ranking.rank}</strong> {ranking.domain} · {ranking.category}
+              </li>
+            ))}</ul> : <p className="muted">No rankings published.</p>}
+          </DetailSection>
+          <DetailSection title="Benchmarks">
+            {benchmarks.length ? <ul className="metric-list">{benchmarks.map(benchmark => (
+              <li key={`${benchmark.name}-${benchmark.rank}`}>
+                <strong>#{benchmark.rank}</strong> {benchmark.name} · {benchmark.score}
+              </li>
+            ))}</ul> : <p className="muted">No benchmarks published.</p>}
+          </DetailSection>
+          <DetailSection title="Aliases"><Chips values={model.aliases} limit={12} /></DetailSection>
+          <DetailSection title="Notices">
+            {model.notices.length ? <ul className="metric-list">{model.notices.map((notice, index) => (
+              <li key={`${notice.kind}-${index}`}><strong>{notice.title ?? titleCase(notice.kind)}</strong><span className="metric-detail">{notice.text}</span></li>
+            ))}</ul> : <p className="muted">No notices published.</p>}
+          </DetailSection>
+        </div>
       </div>
     </>
   );

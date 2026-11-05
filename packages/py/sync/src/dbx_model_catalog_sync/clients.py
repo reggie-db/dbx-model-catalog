@@ -47,6 +47,14 @@ DATABRICKS_CLOUD_PROVIDER_DOCS_URLS = {
     "azure": "https://learn.microsoft.com/azure/databricks/machine-learning/foundation-model-apis/supported-models",
     "gcp": "https://docs.databricks.com/gcp/en/machine-learning/foundation-model-apis/supported-models",
 }
+DATABRICKS_PRICING_PAGE_DATA_URLS = {
+    "https://www.databricks.com/product/pricing/foundation-model-serving": "https://www.databricks.com/en-pricing-assets/page-data/product/pricing/foundation-model-serving/page-data.json",
+    "https://www.databricks.com/product/pricing/proprietary-foundation-model-serving": "https://www.databricks.com/en-pricing-assets/page-data/product/pricing/proprietary-foundation-model-serving/page-data.json",
+}
+DATABRICKS_PRICING_CARDS_URL = (
+    "https://www.databricks.com/en-pricing-assets/data/pricing/cards.json"
+)
+_PRICING_CLOUD_NAMES = {"AWS": "aws", "Azure": "azure", "GCP": "gcp"}
 
 
 @dataclass(frozen=True)
@@ -230,8 +238,18 @@ class DatabricksSyncClient(SyncClient[DatabricksCatalogData]):
                 webSearch={},
                 retiredModelsPolicy={},
             )
+        page_data = {
+            source_url: json.loads(
+                self.fetcher(url, {"accept": "application/json"})
+            )
+            for source_url, url in DATABRICKS_PRICING_PAGE_DATA_URLS.items()
+        }
+        cards = json.loads(
+            self.fetcher(DATABRICKS_PRICING_CARDS_URL, {"accept": "application/json"})
+        )
         return DatabricksCatalogData(
-            pricing=DatabricksPricingCatalog(), cloudProviders=providers
+            pricing=parse_databricks_pricing_catalog(page_data, cards),
+            cloudProviders=providers,
         )
 
 
@@ -260,7 +278,9 @@ def parse_databricks_supported_models_page(html: str, source_url: str) -> Databr
             continue
         if element.name == "div":
             continue
-        if element.find_parent("div") is not None and _notice_kind(element.find_parent("div")):
+        if element.find_parent("p") is not None:
+            continue
+        if any(_notice_kind(parent) for parent in element.find_parents("div")):
             continue
         text = _text(element)
         if not text:
@@ -287,7 +307,7 @@ def parse_databricks_supported_models_page(html: str, source_url: str) -> Databr
         else:
             model.paragraphs.append(text)
     for model in models:
-        model.description = " ".join(model.paragraphs)
+        model.description = _join_paragraphs(model.paragraphs)
     models = [model for model in models if model.endpoint_name or model.service_name]
     return DatabricksSupportedModelsPage(
         metadata={
@@ -300,6 +320,276 @@ def parse_databricks_supported_models_page(html: str, source_url: str) -> Databr
         models=models,
         additionalResources=[],
     )
+
+
+def parse_databricks_pricing_catalog(
+    pages: Mapping[str, object],
+    cards: Mapping[str, Any],
+) -> DatabricksPricingCatalog:
+    entries: dict[
+        tuple[tuple[str, ...], tuple[str, ...], str | None, str, str],
+        dict[str, Any],
+    ] = {}
+    for source_url, page in pages.items():
+        for section in _pricing_sections(page):
+            processed = section.get("fieldDescription", {}).get("processed")
+            if not isinstance(processed, str):
+                continue
+            rule = section.get("fieldItem", {}).get("entity") or {}
+            clouds = tuple(
+                _pricing_cloud(value)
+                for value in rule.get("fieldPricingClouds") or DATABRICKS_CLOUD_PROVIDERS
+            )
+            vendor_values = rule.get("fieldPricingVendors") or []
+            vendor = str(vendor_values[0]).casefold() if vendor_values else None
+            for entry in _parse_pricing_tables(
+                processed,
+                clouds=tuple(value for value in clouds if value),
+                vendor=vendor,
+                source_url=source_url,
+            ):
+                key = (
+                    tuple(entry["names"]),
+                    tuple(entry["clouds"]),
+                    entry.get("vendor"),
+                    entry["mode"],
+                    entry["unit"],
+                )
+                existing = entries.setdefault(key, {**entry, "rates": {}})
+                existing["rates"].update(entry["rates"])
+
+    default_regions, usd_per_dbu = _foundation_model_sku_prices(cards)
+    proprietary = _proprietary_model_sku_prices(cards)
+    for entry in entries.values():
+        vendor = entry.get("vendor")
+        if vendor and vendor in proprietary:
+            entry["usd_per_dbu"] = proprietary[vendor]
+
+    return DatabricksPricingCatalog(
+        sourceUrls=[*pages, DATABRICKS_PRICING_CARDS_URL],
+        defaultRegions=default_regions,
+        usdPerDbu=usd_per_dbu,
+        entries=list(entries.values()),
+    )
+
+
+def _pricing_sections(value: object) -> list[dict[str, Any]]:
+    sections: list[dict[str, Any]] = []
+    if isinstance(value, dict):
+        if (
+            value.get("__typename") == "Drupal_ParagraphPricingRichtext"
+            and "<table" in str(value.get("fieldDescription", {}).get("processed", ""))
+        ):
+            sections.append(value)
+        for item in value.values():
+            sections.extend(_pricing_sections(item))
+    elif isinstance(value, list):
+        for item in value:
+            sections.extend(_pricing_sections(item))
+    return sections
+
+
+def _parse_pricing_tables(
+    html: str,
+    *,
+    clouds: tuple[str, ...],
+    vendor: str | None,
+    source_url: str,
+) -> list[dict[str, Any]]:
+    soup = BeautifulSoup(html, "html.parser")
+    parsed: list[dict[str, Any]] = []
+    for table in soup.find_all("table"):
+        heading = table.find_previous("h3")
+        mode = _pricing_key(_text(heading))
+        header_rows = _expanded_table_rows(table.select("thead tr"))
+        body_rows = _expanded_table_rows(table.select("tbody tr"))
+        if not header_rows or not body_rows:
+            continue
+        width = max(len(row) for row in [*header_rows, *body_rows])
+        header_paths = [
+            [
+                row[column]
+                for row in header_rows
+                if column < len(row) and row[column]
+            ]
+            for column in range(width)
+        ]
+        unit = _pricing_unit(" ".join(value for path in header_paths for value in path))
+        if unit is None:
+            continue
+        variant_column = 1 if width > 2 and not header_paths[1] else None
+        first_rate_column = 2 if variant_column is not None else 1
+        for row in body_rows:
+            if not row:
+                continue
+            names = _pricing_names(row[0])
+            if not names:
+                continue
+            variant = row[variant_column] if variant_column is not None else ""
+            rates: dict[str, float] = {}
+            for column in range(first_rate_column, width):
+                if column >= len(row):
+                    continue
+                value = _pricing_number(row[column])
+                if value is None:
+                    continue
+                dimension = header_paths[column][-1] if header_paths[column] else "rate"
+                parts = []
+                if mode != "pay_per_token":
+                    parts.append(mode.removesuffix("_inference"))
+                if variant:
+                    parts.append(_pricing_key(variant))
+                parts.append(_pricing_key(dimension))
+                rates["_".join(filter(None, parts))] = value
+            if rates:
+                parsed.append(
+                    {
+                        "names": names,
+                        "clouds": list(clouds),
+                        "vendor": vendor,
+                        "mode": mode,
+                        "unit": unit,
+                        "rates": rates,
+                        "source_url": source_url,
+                    }
+                )
+    return parsed
+
+
+def _expanded_table_rows(rows: list[Tag]) -> list[list[str]]:
+    expanded: list[list[str]] = []
+    spans: dict[int, list[object]] = {}
+    for row_tag in rows:
+        cells = iter(row_tag.find_all(["th", "td"], recursive=False))
+        row: list[str] = []
+        column = 0
+        cell = next(cells, None)
+        while cell is not None or spans:
+            if column in spans:
+                remaining, value = spans[column]
+                while len(row) <= column:
+                    row.append("")
+                row[column] = str(value)
+                if int(remaining) <= 1:
+                    del spans[column]
+                else:
+                    spans[column][0] = int(remaining) - 1
+                column += 1
+                continue
+            if cell is None:
+                next_columns = [value for value in spans if value > column]
+                if not next_columns:
+                    break
+                column = min(next_columns)
+                continue
+            text = _text(cell)
+            colspan = int(cell.get("colspan") or 1)
+            rowspan = int(cell.get("rowspan") or 1)
+            for offset in range(colspan):
+                index = column + offset
+                while len(row) <= index:
+                    row.append("")
+                row[index] = text
+                if rowspan > 1:
+                    spans[index] = [rowspan - 1, text]
+            column += colspan
+            cell = next(cells, None)
+        expanded.append(row)
+    return expanded
+
+
+def _pricing_names(value: str) -> list[str]:
+    cleaned = re.sub(r"[⌖*†‡]+", "", value)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    if not cleaned:
+        return []
+    parts = [part.strip() for part in cleaned.split(",") if part.strip()]
+    prefix_match = re.match(r"^(.*?)(?=\d)", parts[0])
+    prefix = prefix_match.group(1) if prefix_match else ""
+    return [
+        f"{prefix}{part}" if index and re.match(r"^\d", part) else part
+        for index, part in enumerate(parts)
+    ]
+
+
+def _pricing_cloud(value: object) -> str | None:
+    normalized = str(value).casefold()
+    return "gcp" if normalized == "google" else normalized if normalized in DATABRICKS_CLOUD_PROVIDERS else None
+
+
+def _pricing_key(value: str) -> str:
+    value = value.casefold().replace("1m", "million")
+    return re.sub(r"[^a-z0-9]+", "_", value).strip("_")
+
+
+def _pricing_unit(value: str) -> str | None:
+    normalized = value.casefold()
+    if "per 1m tokens" in normalized:
+        return "per_million_tokens"
+    if "per hour per 50 model units" in normalized:
+        return "per_hour_per_50_model_units"
+    if "per hour" in normalized:
+        return "per_hour"
+    return None
+
+
+def _pricing_number(value: object) -> float | None:
+    normalized = str(value).strip().replace(",", "").removeprefix("$")
+    if not normalized or normalized in {"-", "—", "n/a"}:
+        return None
+    try:
+        return float(normalized)
+    except ValueError:
+        return None
+
+
+def _foundation_model_sku_prices(
+    cards: Mapping[str, Any],
+) -> tuple[dict[str, str], dict[str, float]]:
+    default_regions: dict[str, str] = {}
+    usd_per_dbu: dict[str, float] = {}
+    catalog = cards.get("fmServingSku")
+    if not isinstance(catalog, dict):
+        return default_regions, usd_per_dbu
+    for external_cloud, cloud in _PRICING_CLOUD_NAMES.items():
+        models = catalog.get(external_cloud)
+        if not isinstance(models, dict) or not models:
+            continue
+        region_maps = [value for value in models.values() if isinstance(value, dict)]
+        if not region_maps:
+            continue
+        for region in region_maps[0]:
+            values = [_pricing_number(regions.get(region)) for regions in region_maps]
+            if None in values or len(set(values)) != 1:
+                continue
+            rate = values[0]
+            if rate is not None and (
+                cloud not in usd_per_dbu or rate < usd_per_dbu[cloud]
+            ):
+                default_regions[cloud] = region
+                usd_per_dbu[cloud] = rate
+    return default_regions, usd_per_dbu
+
+
+def _proprietary_model_sku_prices(
+    cards: Mapping[str, Any],
+) -> dict[str, dict[str, float]]:
+    prices: dict[str, dict[str, float]] = {}
+    plan = cards.get("premium") or cards.get("enterprise") or {}
+    if not isinstance(plan, dict):
+        return prices
+    for external_cloud, cloud in _PRICING_CLOUD_NAMES.items():
+        cloud_prices = plan.get(external_cloud)
+        if not isinstance(cloud_prices, dict):
+            continue
+        vendor_prices = cloud_prices.get("prop_model_serving")
+        if not isinstance(vendor_prices, dict):
+            continue
+        for vendor, value in vendor_prices.items():
+            rate = _pricing_number(value)
+            if rate is not None:
+                prices.setdefault(_pricing_key(vendor), {})[cloud] = rate
+    return prices
 
 
 def fetch_url(url: str, headers: Mapping[str, str]) -> bytes:
@@ -346,7 +636,22 @@ def _json_default(value: object) -> object:
 
 
 def _text(tag: Tag | None) -> str:
-    return " ".join(tag.stripped_strings) if tag else ""
+    if tag is None:
+        return ""
+    value = " ".join(tag.stripped_strings)
+    value = re.sub(r"[\u200b-\u200d\ufeff]", "", value)
+    value = re.sub(r"\s+", " ", value)
+    value = re.sub(r"\s+([,.;:!?\)\]\}])", r"\1", value)
+    value = re.sub(r"([\(\[\{])\s+", r"\1", value)
+    return value.strip()
+
+
+def _join_paragraphs(values: list[str]) -> str:
+    paragraphs = dict.fromkeys(value for value in values if value)
+    return " ".join(
+        value if value.endswith((".", "!", "?")) else f"{value}."
+        for value in paragraphs
+    )
 
 
 def _slug(value: str) -> str:
@@ -367,9 +672,11 @@ def _parse_notice(tag: Tag) -> dict[str, object] | None:
         return None
     parts = []
     for paragraph in tag.find_all("p"):
+        if paragraph.find_parent("p") is not None:
+            continue
         value = _text(paragraph)
         if value.casefold() == kind:
             continue
         parts.append(value)
-    text = " ".join(parts)
+    text = " ".join(dict.fromkeys(parts))
     return {"kind": kind, "text": text, "links": []} if text else None
