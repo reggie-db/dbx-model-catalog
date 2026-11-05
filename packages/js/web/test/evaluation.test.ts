@@ -10,11 +10,11 @@ test("labels thinking and reasoning effort independently", () => {
     reasoning: true,
     reasoning_effort: "max",
     reasoning_mode: "thinking",
-  })).toEqual(["Thinking", "Maximum reasoning"]);
+  })).toEqual(["thinking", "max"]);
 });
 
 test("labels reasoning when no mode or effort is available", () => {
-  expect(evaluationVariantLabels({ reasoning: true })).toEqual(["Reasoning"]);
+  expect(evaluationVariantLabels({ reasoning: true })).toEqual(["reasoning"]);
 });
 
 test("labels model-supported reasoning controls", () => {
@@ -24,11 +24,11 @@ test("labels model-supported reasoning controls", () => {
     toggle: true,
     budget: { min: 1024, max: 32768 },
   })).toEqual([
-    "Low reasoning",
-    "Medium reasoning",
-    "High reasoning",
-    "Extra-high reasoning",
-    "Maximum reasoning",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
     "Toggle",
     "Token budget",
   ]);

@@ -101,7 +101,6 @@ import {
   evaluationVariantLabels,
   reasoningBudgetLabel,
   reasoningControlLabels,
-  reasoningEffortLabel,
   type EvaluationVariant,
 } from "./evaluation.js";
 import { searchStaticCatalog } from "./search.js";
@@ -456,7 +455,7 @@ function Chips({
     <div className="chip-list">
       {visible.map(value => {
         const Icon = kind === "capability"
-          ? capabilityIcons[value] ?? (value === "Thinking" || value.toLocaleLowerCase().includes("reasoning") ? Brain : undefined)
+          ? capabilityIcons[value] ?? (value.toLocaleLowerCase().includes("reasoning") ? Brain : undefined)
           : kind === "modality"
             ? modalityMeta[value]?.Icon
             : undefined;
@@ -749,7 +748,7 @@ function ReasoningDetails({ model }: { model: CatalogModel }) {
   const reasoning = model.capabilities.reasoning;
   if (!reasoning?.supported) return null;
 
-  const efforts = (reasoning.effort ?? []).map(reasoningEffortLabel);
+  const efforts = reasoning.effort ?? [];
   const budget = reasoningBudgetLabel(reasoning.budget);
   const hasDetails = Boolean(
     efforts.length
@@ -765,7 +764,7 @@ function ReasoningDetails({ model }: { model: CatalogModel }) {
     <>
       <dl className="reasoning-details">
         {efforts.length ? <div><dt>Effort levels</dt><dd><Chips values={efforts} kind="capability" limit={8} /></dd></div> : null}
-        {reasoning.default_effort ? <div><dt>Default effort</dt><dd>{reasoningEffortLabel(reasoning.default_effort)}</dd></div> : null}
+        {reasoning.default_effort ? <div><dt>Default effort</dt><dd>{reasoning.default_effort}</dd></div> : null}
         {reasoning.toggle != null ? <div><dt>Toggle</dt><dd>{reasoning.toggle ? "Supported" : "Not supported"}</dd></div> : null}
         {budget ? <div><dt>Token budget</dt><dd>{budget}</dd></div> : null}
         {model.capabilities.interleaved_reasoning != null ? <div><dt>Interleaved reasoning</dt><dd>{model.capabilities.interleaved_reasoning ? "Supported" : "Not supported"}</dd></div> : null}

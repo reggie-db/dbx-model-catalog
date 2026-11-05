@@ -6,24 +6,9 @@ type BenchmarkVariant = NonNullable<CatalogModel["benchmarks"][number]["variant"
 export type EvaluationVariant = RankingVariant | BenchmarkVariant;
 export type ReasoningCapability = CatalogModel["capabilities"]["reasoning"];
 
-const reasoningEffortLabels: Record<string, string> = {
-  default: "Default reasoning",
-  high: "High reasoning",
-  low: "Low reasoning",
-  max: "Maximum reasoning",
-  medium: "Medium reasoning",
-  minimal: "Minimal reasoning",
-  none: "No reasoning",
-  xhigh: "Extra-high reasoning",
-};
-
-export function reasoningEffortLabel(effort: string) {
-  return reasoningEffortLabels[effort] ?? `${effort} reasoning`;
-}
-
 export function reasoningControlLabels(reasoning: ReasoningCapability) {
   if (!reasoning?.supported) return [];
-  const labels = (reasoning.effort ?? []).map(reasoningEffortLabel);
+  const labels: string[] = [...(reasoning.effort ?? [])];
   if (reasoning.toggle) labels.push("Toggle");
   if (reasoning.budget && (reasoning.budget.min != null || reasoning.budget.max != null)) {
     labels.push("Token budget");
@@ -50,12 +35,11 @@ export function evaluationVariantLabels(variant: EvaluationVariant | null | unde
   if (!variant) return [];
 
   const labels: string[] = [];
-  if (variant.reasoning_mode === "thinking") labels.push("Thinking");
-  if (variant.reasoning_mode === "auto") labels.push("Automatic reasoning");
+  if (variant.reasoning_mode) labels.push(variant.reasoning_mode);
 
   const effort = variant.reasoning_effort;
-  if (effort) labels.push(reasoningEffortLabel(effort));
-  if (variant.reasoning === true && !variant.reasoning_mode && !effort) labels.push("Reasoning");
+  if (effort) labels.push(effort);
+  if (variant.reasoning === true && !variant.reasoning_mode && !effort) labels.push("reasoning");
 
   return labels;
 }
