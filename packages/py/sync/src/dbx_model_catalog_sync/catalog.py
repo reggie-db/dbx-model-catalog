@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from diskcache import Cache
 
-from dbx_model_catalog.models import ModelCatalog
+from dbx_model_catalog.models import EffortEnum, ModelCatalog
 from .clients import (
     DatabricksSyncClient,
     LMArenaSyncClient,
@@ -36,6 +36,7 @@ from .models import (
 
 MODEL_CATALOG_SCHEMA_VERSION = 15
 LM_ARENA_LEADERBOARD_URL = "https://arena.ai/leaderboard"
+REASONING_EFFORTS = {effort.value for effort in EffortEnum}
 
 EVALUATION_SUFFIXES = {
     "auto",
@@ -592,13 +593,9 @@ def _catalog_model(
             tools=source.tool_call,
             structured_output=source.structured_output,
         )
-    if documented.reasoning or (source and source.reasoning):
-        levels = documented.reasoning.levels if documented.reasoning else []
-        capabilities["reasoning"] = {
-            "supported": True,
-            **({"effort": [_effort(value) for value in levels]} if levels else {}),
-            **({"description": " ".join(filter(None, [documented.reasoning.details, documented.reasoning.parameters]))} if documented.reasoning else {}),
-        }
+    reasoning = _reasoning_capability(documented, source)
+    if reasoning:
+        capabilities["reasoning"] = reasoning
     identities = _catalog_identities(model_id, documented, source)
     ranking_matches = _matched_rankings(identities, lm_arena_results)
     benchmark_matches = _matched_benchmarks(identities, live_bench_results)
@@ -1061,3 +1058,54 @@ def _modality(value: str) -> str:
 def _effort(value: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "", value.lower())
     return "xhigh" if normalized in {"xhigh", "extrahigh"} else normalized
+
+
+def _reasoning_capability(
+    documented: DatabricksSupportedModel,
+    source: ModelsDevModel | None,
+) -> dict[str, Any] | None:
+    if not documented.reasoning and not (source and source.reasoning):
+        return None
+
+    levels = [
+        normalized
+        for value in (documented.reasoning.levels if documented.reasoning else [])
+        if (normalized := _effort(value)) in REASONING_EFFORTS
+    ]
+    toggle = False
+    budget: dict[str, int] = {}
+    options = (source.reasoning_options or []) if source else []
+    for option in options:
+        option_type = option.get("type")
+        if option_type == "effort":
+            levels.extend(
+                normalized
+                for value in option.get("values", [])
+                if isinstance(value, str)
+                and (normalized := _effort(value)) in REASONING_EFFORTS
+            )
+        elif option_type == "toggle":
+            toggle = True
+        elif option_type == "budget_tokens":
+            for bound in ("min", "max"):
+                value = option.get(bound)
+                if isinstance(value, int) and not isinstance(value, bool):
+                    budget[bound] = value
+
+    description = (
+        " ".join(
+            filter(
+                None,
+                [documented.reasoning.details, documented.reasoning.parameters],
+            )
+        )
+        if documented.reasoning
+        else ""
+    )
+    return {
+        "supported": True,
+        **({"effort": list(dict.fromkeys(levels))} if levels else {}),
+        **({"toggle": True} if toggle else {}),
+        **({"budget": budget} if budget else {}),
+        **({"description": description} if description else {}),
+    }

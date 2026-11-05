@@ -829,6 +829,21 @@ def _capability_search_fields(record: CatalogModelRecord) -> list[_SearchField]:
             fields.append(
                 _SearchField("capability", capability.replace("_", " "), 0.94)
             )
+        if capability == "reasoning" and isinstance(value, dict):
+            fields.extend(
+                _SearchField("reasoning effort", f"{effort} reasoning", 0.94)
+                for effort in value.get("effort") or []
+            )
+            if value.get("toggle") is True:
+                fields.append(_SearchField("reasoning control", "reasoning toggle", 0.92))
+            if value.get("budget"):
+                fields.append(_SearchField("reasoning control", "reasoning token budget", 0.92))
+            if value.get("description"):
+                fields.append(
+                    _SearchField(
+                        "reasoning description", str(value["description"]), 0.8
+                    )
+                )
     return fields
 
 

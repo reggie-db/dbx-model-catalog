@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import {
-  evaluationLabelsForResults,
   evaluationVariantLabels,
+  reasoningBudgetLabel,
+  reasoningControlLabels,
 } from "../src/evaluation.js";
 
 test("labels thinking and reasoning effort independently", () => {
@@ -16,10 +17,20 @@ test("labels reasoning when no mode or effort is available", () => {
   expect(evaluationVariantLabels({ reasoning: true })).toEqual(["Reasoning"]);
 });
 
-test("deduplicates evaluation labels across results", () => {
-  expect(evaluationLabelsForResults([
-    { variant: { reasoning_effort: "high" } },
-    { variant: { reasoning: true, reasoning_mode: "thinking" } },
-    { variant: { reasoning_effort: "high" } },
-  ])).toEqual(["Thinking", "High reasoning"]);
+test("labels model-supported reasoning controls", () => {
+  expect(reasoningControlLabels({
+    supported: true,
+    effort: ["low", "medium", "high", "xhigh", "max"],
+    toggle: true,
+    budget: { min: 1024, max: 32768 },
+  })).toEqual([
+    "Low reasoning",
+    "Medium reasoning",
+    "High reasoning",
+    "Extra-high reasoning",
+    "Maximum reasoning",
+    "Toggle",
+    "Token budget",
+  ]);
+  expect(reasoningBudgetLabel({ min: 1024, max: 32768 })).toBe("1,024–32,768 tokens");
 });

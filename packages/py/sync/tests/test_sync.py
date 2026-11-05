@@ -357,6 +357,14 @@ def test_builds_catalog_from_python_sources() -> None:
                         "description": "Model description",
                         "attachment": True,
                         "reasoning": True,
+                        "reasoning_options": [
+                            {
+                                "type": "effort",
+                                "values": ["low", "medium", "high", "extra-high"],
+                            },
+                            {"type": "toggle"},
+                            {"type": "budget_tokens", "min": 1024, "max": 32768},
+                        ],
                         "tool_call": True,
                         "structured_output": True,
                         "release_date": "2026-10-01",
@@ -502,6 +510,13 @@ def test_builds_catalog_from_python_sources() -> None:
     assert model.publisher == "OpenAI"
     assert model.status == "beta"
     assert model.modalities.input == ["text", "application/pdf"]
+    assert model.capabilities.reasoning is not None
+    assert model.capabilities.reasoning.model_dump(mode="json", exclude_none=True) == {
+        "supported": True,
+        "effort": ["low", "medium", "high", "xhigh"],
+        "toggle": True,
+        "budget": {"min": 1024, "max": 32768},
+    }
     assert model.limits.context == 200000
     assert set(model.availability) == {"aws", "azure", "gcp"}
     assert {value.status for value in model.availability.values()} == {"beta"}

@@ -98,8 +98,10 @@ import {
   type SourceLink,
 } from "@dbx-tools/dbx-model-catalog/browser";
 import {
-  evaluationLabelsForResults,
   evaluationVariantLabels,
+  reasoningBudgetLabel,
+  reasoningControlLabels,
+  reasoningEffortLabel,
   type EvaluationVariant,
 } from "./evaluation.js";
 import { searchStaticCatalog } from "./search.js";
@@ -124,7 +126,6 @@ interface EnumOption {
 
 const capabilityLabels = {
   attachments: "Attachments",
-  reasoning: "Reasoning",
   structured_output: "Structured output",
   tools: "Tools",
   web_search: "Web search",
@@ -166,7 +167,6 @@ const columnLabels: Record<string, string> = {
   capabilities: "Capabilities",
   clouds: "Clouds",
   context: "Context",
-  evaluationVariants: "Evaluation variants",
   family: "Family",
   inputModalities: "Input modalities",
   inputLimit: "Input limit",
@@ -177,6 +177,7 @@ const columnLabels: Record<string, string> = {
   outputModalities: "Output modalities",
   outputLimit: "Output limit",
   publisher: "Publisher",
+  reasoningControls: "Reasoning controls",
   overallRank: "Best overall rank",
   released: "Released",
   servingModes: "Serving modes",
@@ -312,10 +313,7 @@ const publisherIcons: Record<string, CatalogIcon> = {
 
 function activeCapabilities(model: CatalogModel) {
   return (Object.keys(capabilityLabels) as CapabilityName[])
-    .filter(name => {
-      const value = model.capabilities?.[name];
-      return name === "reasoning" ? typeof value === "object" && value?.supported : value === true;
-    })
+    .filter(name => model.capabilities?.[name] === true)
     .map(name => capabilityLabels[name]);
 }
 
@@ -329,8 +327,8 @@ function servingModes(model: CatalogModel) {
   return [...new Set(Object.values(model.availability).flatMap(availability => availability.serving_modes))];
 }
 
-function evaluationLabels(model: CatalogModel) {
-  return evaluationLabelsForResults([...model.rankings, ...model.benchmarks]);
+function modelReasoningLabels(model: CatalogModel) {
+  return reasoningControlLabels(model.capabilities.reasoning);
 }
 
 function bestOverallRanking(model: CatalogModel) {
@@ -429,6 +427,7 @@ function searchText(id: string, model: CatalogModel) {
     ...model.modalities.input,
     ...model.modalities.output,
     ...activeCapabilities(model),
+    ...(model.capabilities.reasoning?.supported ? ["reasoning", ...modelReasoningLabels(model)] : []),
     ...activeClouds(model),
     ...servingModes(model),
     ...model.notices.flatMap(notice => [notice.kind, notice.title, notice.text]),
@@ -746,11 +745,42 @@ function priceDimension(rateName: string) {
   return { context, meter, plan };
 }
 
+function ReasoningDetails({ model }: { model: CatalogModel }) {
+  const reasoning = model.capabilities.reasoning;
+  if (!reasoning?.supported) return null;
+
+  const efforts = (reasoning.effort ?? []).map(reasoningEffortLabel);
+  const budget = reasoningBudgetLabel(reasoning.budget);
+  const hasDetails = Boolean(
+    efforts.length
+    || reasoning.default_effort
+    || reasoning.toggle != null
+    || budget
+    || model.capabilities.interleaved_reasoning != null
+    || reasoning.description,
+  );
+  if (!hasDetails) return <p>Supported</p>;
+
+  return (
+    <>
+      <dl className="reasoning-details">
+        {efforts.length ? <div><dt>Effort levels</dt><dd><Chips values={efforts} kind="capability" limit={8} /></dd></div> : null}
+        {reasoning.default_effort ? <div><dt>Default effort</dt><dd>{reasoningEffortLabel(reasoning.default_effort)}</dd></div> : null}
+        {reasoning.toggle != null ? <div><dt>Toggle</dt><dd>{reasoning.toggle ? "Supported" : "Not supported"}</dd></div> : null}
+        {budget ? <div><dt>Token budget</dt><dd>{budget}</dd></div> : null}
+        {model.capabilities.interleaved_reasoning != null ? <div><dt>Interleaved reasoning</dt><dd>{model.capabilities.interleaved_reasoning ? "Supported" : "Not supported"}</dd></div> : null}
+      </dl>
+      {reasoning.description ? <p className="reasoning-description">{reasoning.description}</p> : null}
+    </>
+  );
+}
+
 function ModelDetails({ model }: { model: CatalogRow }) {
   const [view, setView] = useState<"details" | "json">("details");
   const rankings = [...model.rankings].sort((left, right) => left.rank - right.rank);
   const benchmarks = [...model.benchmarks].sort((left, right) => left.rank - right.rank);
   const capabilities = activeCapabilities(model);
+  const hasReasoning = model.capabilities.reasoning?.supported === true;
   const hasAvailability = Object.keys(model.availability).length > 0;
   const hasPrice = Object.keys(model.average_price).length > 0;
   const hasRetirement = Boolean(model.retirement && (
@@ -813,8 +843,9 @@ function ModelDetails({ model }: { model: CatalogRow }) {
         </dl>
         <div className="detail-columns">
           {model.aliases.length ? <DetailSection title="Aliases" sources={fieldSources(model, "aliases")} wide><Chips values={model.aliases} limit={12} /></DetailSection> : null}
-          {(capabilities.length || hasAvailability) ? <DetailPair>
-            {capabilities.length ? <DetailSection title="Capabilities" sources={fieldSources(model, "capabilities")}><Chips values={capabilities} kind="capability" limit={8} /></DetailSection> : null}
+          {capabilities.length ? <DetailSection title="Capabilities" sources={fieldSources(model, "capabilities")} wide><Chips values={capabilities} kind="capability" limit={8} /></DetailSection> : null}
+          {(hasReasoning || hasAvailability) ? <DetailPair>
+            {hasReasoning ? <DetailSection title="Reasoning controls" sources={fieldSources(model, "capabilities")}><ReasoningDetails model={model} /></DetailSection> : null}
             {hasAvailability ? <DetailSection title="Cloud availability" sources={fieldSources(model, "availability")}><AvailabilityDetails model={model} /></DetailSection> : null}
           </DetailPair> : null}
           {(model.modalities.input.length || model.modalities.output.length) ? <DetailPair>
@@ -1008,13 +1039,13 @@ function App() {
   const headerFilterOptions = useMemo<Record<string, EnumOption[]>>(() => ({
     capabilities: makeEnumOptions(models.flatMap(activeCapabilities), value => value),
     clouds: makeEnumOptions(models.flatMap(activeClouds), value => cloudMeta[value as Cloud]?.label ?? humanizeEnum(value)),
-    evaluationVariants: makeEnumOptions(models.flatMap(evaluationLabels), value => value),
     family: makeEnumOptions(models.map(model => model.family), value => value),
     inputModalities: makeEnumOptions(models.flatMap(model => model.modalities.input), humanizeEnum),
     license: makeEnumOptions(models.map(model => model.license), value => value),
     openWeights: makeEnumOptions(["No", "Unknown", "Yes"], value => value),
     outputModalities: makeEnumOptions(models.flatMap(model => model.modalities.output), humanizeEnum),
     publisher: makeEnumOptions(models.map(model => model.publisher), value => value),
+    reasoningControls: makeEnumOptions(models.flatMap(modelReasoningLabels), value => value),
     servingModes: makeEnumOptions(models.flatMap(servingModes), humanizeEnum),
     status: makeEnumOptions(models.map(model => model.status), humanizeEnum),
     tasks: makeEnumOptions(models.flatMap(model => model.tasks), humanizeEnum),
@@ -1060,7 +1091,7 @@ function App() {
     { id: "clouds", accessorFn: row => activeClouds(row), header: "Clouds", filterFn: enumFilter, cell: ({ row }) => <CloudChips clouds={activeClouds(row.original)} /> },
     { id: "servingModes", accessorFn: row => servingModes(row), header: "Serving modes", filterFn: enumFilter, cell: ({ row }) => <Chips values={servingModes(row.original)} humanize limit={3} /> },
     { id: "capabilities", accessorFn: row => activeCapabilities(row), header: "Capabilities", filterFn: enumFilter, cell: ({ row }) => <Chips values={activeCapabilities(row.original)} kind="capability" limit={3} /> },
-    { id: "evaluationVariants", accessorFn: row => evaluationLabels(row), header: "Evaluation variants", filterFn: enumFilter, cell: ({ row }) => <Chips values={evaluationLabels(row.original)} kind="capability" limit={3} /> },
+    { id: "reasoningControls", accessorFn: row => modelReasoningLabels(row), header: "Reasoning controls", filterFn: enumFilter, cell: ({ row }) => <Chips values={modelReasoningLabels(row.original)} kind="capability" limit={5} /> },
     { id: "inputModalities", accessorFn: row => row.modalities.input, header: "Input modalities", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.modalities.input} kind="modality" /> },
     { id: "outputModalities", accessorFn: row => row.modalities.output, header: "Output modalities", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.modalities.output} kind="modality" /> },
     { id: "tasks", accessorFn: row => row.tasks, header: "Tasks", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.tasks} humanize /> },

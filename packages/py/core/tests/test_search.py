@@ -155,6 +155,26 @@ def test_search_index_exposes_python_owned_weights() -> None:
     assert index.documents[0].id == "databricks-gpt-6"
 
 
+def test_search_index_includes_supported_reasoning_controls() -> None:
+    model = _model("databricks-gpt-6", "OpenAI GPT-6", "2026-10-31")
+    model["capabilities"] = {
+        "web_search": False,
+        "reasoning": {
+            "supported": True,
+            "effort": ["low", "medium", "high"],
+            "toggle": True,
+            "budget": {"min": 1024, "max": 32768},
+        },
+    }
+    client = ModelCatalogClient.from_catalog(_catalog(model))
+
+    document = client.search_index.documents[0]
+
+    assert "high reasoning" in document.keywords
+    assert "reasoning toggle" in document.keywords
+    assert "reasoning token budget" in document.keywords
+
+
 def _expected_top(
     records: list[CatalogModelRecord],
     query: str,
