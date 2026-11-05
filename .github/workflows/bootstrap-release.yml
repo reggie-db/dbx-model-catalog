@@ -64,4 +64,5 @@ jobs:
           npm trust github @dbx-tools/dbx-model-catalog \
             --repo reggie-db/dbx-model-catalog \
             --file release.yml \
+            --allow-publish \
             --yes
