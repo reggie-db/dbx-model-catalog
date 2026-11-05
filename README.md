@@ -8,6 +8,10 @@ Text search is ranked by the Python service with RapidFuzz. The browser keeps
 categorical and numeric filtering local after receiving the relevance-ordered
 matches.
 
+Catalog records include openable source links for model metadata, pricing,
+notices, rankings, benchmarks, and derived use cases where upstream provenance
+is available.
+
 ## Layout
 
 - `packages/py/common`: shared Pydantic models and catalog read/filter service

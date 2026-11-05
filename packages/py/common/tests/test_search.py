@@ -175,7 +175,7 @@ def _overall_rank(record: CatalogModelRecord) -> tuple[float, float, int, int]:
 
 def _catalog(*models: dict[str, object]) -> dict[str, object]:
     return {
-        "schema_version": 14,
+        "schema_version": 15,
         "updated_at": "2026-11-05T12:00:00Z",
         "models": {str(model.pop("id")): model for model in models},
     }
@@ -206,6 +206,7 @@ def _model(
         "availability": {},
         "price": {},
         "average_price": {},
+        "sources": {},
         "notices": [],
         "rankings": [] if rank is None else [_ranking(rank)],
         "benchmarks": [],
@@ -217,6 +218,7 @@ def _ranking(rank: int) -> dict[str, object]:
         "domain": "text",
         "category": "overall",
         "rank": rank,
+        "sources": [],
         "metric": "rating",
         "rating": 1_500,
         "lower": 1_490,

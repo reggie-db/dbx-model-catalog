@@ -4,7 +4,7 @@
   "properties": {
     "schema_version": {
       "type": "number",
-      "const": 14,
+      "const": 15,
       "description": "Version of the published catalog contract."
     },
     "updated_at": {
@@ -555,6 +555,21 @@
           },
           "description": "Average Databricks DBU and USD price across cloud providers and matched pricing variants."
         },
+        "sources": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Catalog field supported by these sources."
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/SourceLink"
+            }
+          },
+          "description": "Openable sources keyed by the catalog field they support."
+        },
         "notices": {
           "type": "array",
           "items": {
@@ -588,11 +603,19 @@
               "text": {
                 "type": "string",
                 "description": "Deduplicated notice text."
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceLink"
+                },
+                "description": "Openable sources supporting the notice."
               }
             },
             "required": [
               "kind",
-              "text"
+              "text",
+              "sources"
             ],
             "additionalProperties": false,
             "description": "Important Databricks documentation notice."
@@ -669,6 +692,13 @@
                     },
                     "additionalProperties": false
                   },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/SourceLink"
+                    },
+                    "description": "Openable leaderboard sources for this result."
+                  },
                   "metric": {
                     "type": "string",
                     "const": "rating",
@@ -702,6 +732,7 @@
                   "domain",
                   "category",
                   "rank",
+                  "sources",
                   "metric",
                   "rating",
                   "lower",
@@ -778,6 +809,13 @@
                     },
                     "additionalProperties": false
                   },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/SourceLink"
+                    },
+                    "description": "Openable leaderboard sources for this result."
+                  },
                   "metric": {
                     "type": "string",
                     "const": "score",
@@ -819,6 +857,7 @@
                   "domain",
                   "category",
                   "rank",
+                  "sources",
                   "metric",
                   "score",
                   "lower",
@@ -907,13 +946,21 @@
                   }
                 },
                 "additionalProperties": false
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceLink"
+                },
+                "description": "Openable benchmark sources for this result."
               }
             },
             "required": [
               "name",
               "rank",
               "score",
-              "task_count"
+              "task_count",
+              "sources"
             ],
             "additionalProperties": false,
             "description": "Task-suite benchmark result."
@@ -934,6 +981,7 @@
         "availability",
         "price",
         "average_price",
+        "sources",
         "notices",
         "rankings",
         "benchmarks"
@@ -941,6 +989,28 @@
       "additionalProperties": false,
       "description": "Published statistics for one Databricks model.",
       "title": "CatalogModel"
+    },
+    "SourceLink": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable source name."
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^https?://",
+          "description": "Absolute HTTP URL for the source."
+        }
+      },
+      "required": [
+        "label",
+        "url"
+      ],
+      "additionalProperties": false,
+      "description": "Openable attribution for published catalog data."
     }
   }
 }

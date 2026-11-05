@@ -269,13 +269,21 @@
               }
             ],
             "default": null
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLink"
+            },
+            "title": "Sources",
+            "type": "array"
           }
         },
         "required": [
           "name",
           "rank",
           "score",
-          "task_count"
+          "task_count",
+          "sources"
         ],
         "title": "Benchmark",
         "type": "object"
@@ -685,6 +693,19 @@
             "title": "Average Price",
             "type": "object"
           },
+          "sources": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/SourceLink"
+              },
+              "type": "array"
+            },
+            "propertyNames": {
+              "minLength": 1
+            },
+            "title": "Sources",
+            "type": "object"
+          },
           "notices": {
             "items": {
               "$ref": "#/components/schemas/Notice"
@@ -727,6 +748,7 @@
           "availability",
           "price",
           "average_price",
+          "sources",
           "notices",
           "rankings",
           "benchmarks"
@@ -937,6 +959,19 @@
             "title": "Average Price",
             "type": "object"
           },
+          "sources": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/SourceLink"
+              },
+              "type": "array"
+            },
+            "propertyNames": {
+              "minLength": 1
+            },
+            "title": "Sources",
+            "type": "object"
+          },
           "notices": {
             "items": {
               "$ref": "#/components/schemas/Notice"
@@ -984,6 +1019,7 @@
           "availability",
           "price",
           "average_price",
+          "sources",
           "notices",
           "rankings",
           "benchmarks",
@@ -1223,7 +1259,7 @@
         "description": "Published Databricks model catalog with identity, capabilities, availability, pricing, lifecycle, rankings, and benchmarks.",
         "properties": {
           "schema_version": {
-            "const": 14,
+            "const": 15,
             "title": "Schema Version",
             "type": "integer"
           },
@@ -1282,11 +1318,19 @@
           "text": {
             "title": "Text",
             "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLink"
+            },
+            "title": "Sources",
+            "type": "array"
           }
         },
         "required": [
           "kind",
-          "text"
+          "text",
+          "sources"
         ],
         "title": "Notice",
         "type": "object"
@@ -1374,6 +1418,13 @@
             ],
             "default": null
           },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLink"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
           "metric": {
             "const": "rating",
             "title": "Metric",
@@ -1407,6 +1458,7 @@
           "domain",
           "category",
           "rank",
+          "sources",
           "metric",
           "rating",
           "lower",
@@ -1459,6 +1511,13 @@
             ],
             "default": null
           },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLink"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
           "metric": {
             "const": "score",
             "title": "Metric",
@@ -1500,6 +1559,7 @@
           "domain",
           "category",
           "rank",
+          "sources",
           "metric",
           "score",
           "lower",
@@ -1704,6 +1764,29 @@
         ],
         "title": "ServingMode",
         "type": "string"
+      },
+      "SourceLink": {
+        "additionalProperties": false,
+        "description": "Openable attribution for published catalog data.",
+        "properties": {
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "url": {
+            "minLength": 1,
+            "pattern": "^https?://",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "url"
+        ],
+        "title": "SourceLink",
+        "type": "object"
       },
       "Status": {
         "description": "Current normalized lifecycle state.",

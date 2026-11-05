@@ -87,7 +87,7 @@ def test_supported_models_parser_normalizes_notices() -> None:
         <h2 id="gpt-test">OpenAI GPT Test<a href="#gpt-test">​</a></h2>
         <p>Endpoint name: <code>databricks-gpt-test</code></p>
         <p>Supported inputs: Text, Images</p>
-        <div class="IMPORTANT"><div><p>Important</p><p>Follow the <a>usage policy</a>.<p>Cache details.</p></p></div></div>
+        <div class="IMPORTANT"><div><p>Important</p><p>Follow the <a href="/usage-policy">usage policy</a>.<p>Cache details.</p></p></div></div>
         <p>Availability: Pay-per-token</p>
         <p>General <a>model details</a>.</p>
         """,
@@ -101,7 +101,12 @@ def test_supported_models_parser_normalizes_notices() -> None:
     assert page.models[0].notices[0].model_dump() == {
         "kind": "important",
         "text": "Follow the usage policy. Cache details.",
-        "links": [],
+        "links": [
+            {
+                "label": "usage policy",
+                "url": "https://example.com/usage-policy",
+            }
+        ],
     }
 
 
@@ -421,6 +426,7 @@ def test_builds_catalog_from_python_sources() -> None:
                             "rows": [
                                 {
                                     "model_name": "GPT Test (High)",
+                                    "source_url": "https://huggingface.co/datasets/x/blob/main/agent/latest-00000-of-00001.parquet?sql_row=0",
                                     "rank": 2,
                                     "leaderboard_publish_date": "2026-10-31",
                                     "score": 0.42,
@@ -432,6 +438,7 @@ def test_builds_catalog_from_python_sources() -> None:
                                 },
                                 {
                                     "model_name": "Unrelated Model",
+                                    "source_url": "https://huggingface.co/datasets/x/blob/main/agent/latest-00000-of-00001.parquet?sql_row=1",
                                     "rank": 1,
                                     "score": 0.7,
                                     "score_ci_lower": 0.6,
@@ -456,10 +463,12 @@ def test_builds_catalog_from_python_sources() -> None:
                     "rows": [
                         {
                             "model": "unrelated-model",
+                            "source_url": "https://github.com/LiveBench/livebench.github.io/blob/main/public/table_2026_10_30.csv#L2",
                             "scores": {"code_generation": 99, "code_completion": 99},
                         },
                         {
                             "model": "gpt-test-high-effort",
+                            "source_url": "https://github.com/LiveBench/livebench.github.io/blob/main/public/table_2026_10_30.csv#L3",
                             "scores": {"code_generation": 80, "code_completion": 90},
                         },
                     ],
@@ -505,6 +514,12 @@ def test_builds_catalog_from_python_sources() -> None:
         "rank": 2,
         "published_at": "2026-10-31",
         "variant": {"reasoning_effort": "high"},
+        "sources": [
+            {
+                "label": "LM Arena",
+                "url": "https://huggingface.co/datasets/x/blob/main/agent/latest-00000-of-00001.parquet?sql_row=0",
+            }
+        ],
         "metric": "score",
         "score": 0.42,
         "lower": 0.4,
@@ -519,7 +534,21 @@ def test_builds_catalog_from_python_sources() -> None:
         "task_count": 2,
         "published_at": "2026-10-30",
         "variant": {"reasoning_effort": "high"},
+        "sources": [
+            {
+                "label": "LiveBench",
+                "url": "https://github.com/LiveBench/livebench.github.io/blob/main/public/table_2026_10_30.csv#L3",
+            }
+        ],
     }
+    assert [source.url for source in model.sources["description"]] == [
+        "https://models.dev/models/openai/gpt-test"
+    ]
+    assert "use_cases" not in model.sources
+    assert "rankings" not in model.sources
+    assert "benchmarks" not in model.sources
+    assert "price" not in model.sources
+    assert "average_price" not in model.sources
     assert model.use_cases == [
         "chat",
         "reasoning",

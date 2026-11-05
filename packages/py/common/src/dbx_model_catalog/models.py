@@ -376,6 +376,24 @@ class AveragePrice(BaseModel):
     """
 
 
+class SourceLink(BaseModel):
+    """
+    Openable attribution for published catalog data.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    label: constr(min_length=1)
+    """
+    Human-readable source name.
+    """
+    url: constr(min_length=1, pattern=r'^https?://')
+    """
+    Absolute HTTP URL for the source.
+    """
+
+
 class Kind(StrEnum):
     """
     Known Databricks documentation notice kinds.
@@ -408,6 +426,10 @@ class Notice(BaseModel):
     text: str
     """
     Deduplicated notice text.
+    """
+    sources: list[SourceLink]
+    """
+    Openable sources supporting the notice.
     """
 
 
@@ -493,6 +515,10 @@ class Rankings(BaseModel):
     """
     Evaluated model variant when it differs from the base model.
     """
+    sources: list[SourceLink]
+    """
+    Openable leaderboard sources for this result.
+    """
     metric: Literal['rating']
     """
     This ranking uses a preference rating.
@@ -576,6 +602,10 @@ class Rankings1(BaseModel):
     variant: Variant1 | None = None
     """
     Evaluated model variant when it differs from the base model.
+    """
+    sources: list[SourceLink]
+    """
+    Openable leaderboard sources for this result.
     """
     metric: Literal['score']
     """
@@ -664,6 +694,10 @@ class Benchmark(BaseModel):
     variant: Variant2 | None = None
     """
     Evaluated model variant when it differs from the base model.
+    """
+    sources: list[SourceLink]
+    """
+    Openable benchmark sources for this result.
     """
 
 
@@ -759,6 +793,10 @@ class CatalogModel(BaseModel):
     """
     Average Databricks DBU and USD price across cloud providers and matched pricing variants.
     """
+    sources: dict[constr(min_length=1), list[SourceLink]]
+    """
+    Openable sources keyed by the catalog field they support.
+    """
     notices: list[Notice]
     """
     Deduplicated Databricks documentation notices.
@@ -781,7 +819,7 @@ class ModelCatalog(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    schema_version: Literal[14]
+    schema_version: Literal[15]
     """
     Version of the published catalog contract.
     """
@@ -803,7 +841,7 @@ __all__ = [
     "CatalogModel",
     "CatalogModelRecord",
     "ModelCatalog",
+    "SourceLink",
     "Status",
     "Type",
 ]
-

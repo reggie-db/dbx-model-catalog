@@ -22,6 +22,7 @@ export interface Benchmark {
   task_count: number;
   published_at?: string | null;
   variant?: Variant2 | null;
+  sources: Array<SourceLink>;
 }
 
 /** Supported reasoning-token budget range. */
@@ -74,6 +75,7 @@ export interface CatalogModel {
   availability: Record<string, Availability>;
   price: Record<string, Record<string, Price>>;
   average_price: Record<string, AveragePrice>;
+  sources: Record<string, Array<SourceLink>>;
   notices: Array<Notice>;
   rankings: Array<Rankings | Rankings1>;
   benchmarks: Array<Benchmark>;
@@ -101,6 +103,7 @@ export interface CatalogModelRecord {
   availability: Record<string, Availability>;
   price: Record<string, Record<string, Price>>;
   average_price: Record<string, AveragePrice>;
+  sources: Record<string, Array<SourceLink>>;
   notices: Array<Notice>;
   rankings: Array<Rankings | Rankings1>;
   benchmarks: Array<Benchmark>;
@@ -154,7 +157,7 @@ export interface Modalities {
 
 /** Published Databricks model catalog with identity, capabilities, availability, pricing, lifecycle, rankings, and benchmarks. */
 export interface ModelCatalog {
-  schema_version: 14;
+  schema_version: 15;
   updated_at: string;
   models: Record<string, CatalogModel>;
 }
@@ -164,6 +167,7 @@ export interface Notice {
   kind: Kind | string;
   title?: string | null;
   text: string;
+  sources: Array<SourceLink>;
 }
 
 /** Known model input and output modalities. */
@@ -182,6 +186,7 @@ export interface Rankings {
   rank: number;
   published_at?: string | null;
   variant?: Variant | null;
+  sources: Array<SourceLink>;
   metric: "rating";
   rating: number;
   lower: number;
@@ -197,6 +202,7 @@ export interface Rankings1 {
   rank: number;
   published_at?: string | null;
   variant?: Variant1 | null;
+  sources: Array<SourceLink>;
   metric: "score";
   score: number;
   lower: number;
@@ -241,6 +247,12 @@ export interface Schedule {
 
 /** Databricks serving mode available for the model. */
 export type ServingMode = "pay_per_token" | "priority_pay_per_token" | "provisioned_throughput" | "batch";
+
+/** Openable attribution for published catalog data. */
+export interface SourceLink {
+  label: string;
+  url: string;
+}
 
 /** Current normalized lifecycle state. */
 export type Status = "active" | "preview" | "alpha" | "beta" | "legacy" | "deprecated" | "retired";

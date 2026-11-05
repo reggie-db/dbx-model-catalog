@@ -73,6 +73,7 @@ import {
   type CatalogModel,
   type CatalogModelRecord,
   type ModelCatalog as CatalogPayload,
+  type SourceLink,
 } from "@regbo/dbx-model-catalog-common";
 
 type Cloud = "aws" | "azure" | "gcp";
@@ -328,6 +329,43 @@ function PublisherMark({ publisher }: { publisher: string | null | undefined }) 
   );
 }
 
+function fieldSources(model: CatalogModel, field: keyof CatalogModel) {
+  return model.sources[String(field)] ?? [];
+}
+
+function SourceLinks({ sources }: { sources: SourceLink[] }) {
+  if (!sources.length) return null;
+  return (
+    <span className="source-links" aria-label="Sources">
+      {sources.map((source, index) => (
+        <a
+          className="source-link"
+          href={source.url}
+          key={source.url}
+          target="_blank"
+          rel="noreferrer"
+          title={`Open ${source.label}`}
+          aria-label={`Open ${source.label}`}
+        >
+          <sup>{index + 1}</sup>
+        </a>
+      ))}
+    </span>
+  );
+}
+
+function SourcedText({ children, sources }: { children: ReactNode; sources: SourceLink[] }) {
+  if (sources.length === 1) {
+    const [source] = sources;
+    return (
+      <a className="sourced-text" href={source.url} target="_blank" rel="noreferrer" title={`Open ${source.label}`}>
+        {children}<ExternalLink aria-hidden="true" />
+      </a>
+    );
+  }
+  return <>{children}<SourceLinks sources={sources} /></>;
+}
+
 function SelectFilter({
   label,
   value,
@@ -431,8 +469,8 @@ function HeaderFilter({
   );
 }
 
-function DetailSection({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="detail-section"><h3>{title}</h3>{children}</section>;
+function DetailSection({ title, sources = [], children }: { title: string; sources?: SourceLink[]; children: ReactNode }) {
+  return <section className="detail-section"><h3>{title}<SourceLinks sources={sources} /></h3>{children}</section>;
 }
 
 function AvailabilityDetails({ model }: { model: CatalogModel }) {
@@ -464,35 +502,44 @@ function ModelDetails({ model }: { model: CatalogRow }) {
     <>
       <DialogHeader>
         <p className="model-id">{model.id}</p>
-        <DialogTitle>{model.name}</DialogTitle>
-        <DialogDescription>{model.description || "No description is available."}</DialogDescription>
+        <DialogTitle><SourcedText sources={fieldSources(model, "name")}>{model.name}</SourcedText></DialogTitle>
+        <DialogDescription>
+          <SourcedText sources={model.description ? fieldSources(model, "description") : []}>
+            {model.description || "No description is available."}
+          </SourcedText>
+        </DialogDescription>
       </DialogHeader>
       <div className="model-dialog-body">
         <dl className="detail-grid">
           {([
-            ["Status", titleCase(model.status)],
-            ["Type", titleCase(model.type)],
-            ["Publisher", <PublisherMark publisher={model.publisher} />],
-            ["Family", model.family ?? "—"],
-            ["License", model.license ?? "—"],
-            ["Open weights", model.open_weights == null ? "—" : model.open_weights ? "Yes" : "No"],
-            ["Context", model.limits?.context ? `${formatNumber(model.limits.context)} tokens` : "—"],
-            ["Input limit", model.limits?.input ? `${formatNumber(model.limits.input)} tokens` : "—"],
-            ["Output limit", model.limits?.output ? `${formatNumber(model.limits.output)} tokens` : "—"],
-            ["Released", formatDate(model.release_date)],
-            ["Updated", formatDate(model.last_updated)],
-            ["Knowledge cutoff", formatDate(model.knowledge_cutoff)],
-          ] satisfies Array<[string, ReactNode]>).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+            ["status", "Status", titleCase(model.status)],
+            ["type", "Type", titleCase(model.type)],
+            ["publisher", "Publisher", <PublisherMark publisher={model.publisher} />],
+            ["family", "Family", model.family ?? "—"],
+            ["license", "License", model.license ?? "—"],
+            ["open_weights", "Open weights", model.open_weights == null ? "—" : model.open_weights ? "Yes" : "No"],
+            ["limits", "Context", model.limits?.context ? `${formatNumber(model.limits.context)} tokens` : "—"],
+            ["limits", "Input limit", model.limits?.input ? `${formatNumber(model.limits.input)} tokens` : "—"],
+            ["limits", "Output limit", model.limits?.output ? `${formatNumber(model.limits.output)} tokens` : "—"],
+            ["release_date", "Released", formatDate(model.release_date)],
+            ["last_updated", "Updated", formatDate(model.last_updated)],
+            ["knowledge_cutoff", "Knowledge cutoff", formatDate(model.knowledge_cutoff)],
+          ] satisfies Array<[keyof CatalogModel, string, ReactNode]>).map(([field, label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd><SourcedText sources={value === "—" ? [] : fieldSources(model, field)}>{value}</SourcedText></dd>
+            </div>
+          ))}
         </dl>
         <div className="detail-columns">
-          <DetailSection title="Capabilities"><Chips values={activeCapabilities(model)} limit={8} /></DetailSection>
-          <DetailSection title="Cloud availability"><AvailabilityDetails model={model} /></DetailSection>
-          <DetailSection title="Input modalities"><Chips values={model.modalities.input} /></DetailSection>
-          <DetailSection title="Output modalities"><Chips values={model.modalities.output} /></DetailSection>
-          <DetailSection title="Tasks"><Chips values={model.tasks} limit={8} /></DetailSection>
-          <DetailSection title="Use cases"><Chips values={model.use_cases} limit={8} /></DetailSection>
-          <DetailSection title="Average price"><PriceDetails model={model} /></DetailSection>
-          <DetailSection title="Retirement">
+          <DetailSection title="Capabilities" sources={fieldSources(model, "capabilities")}><Chips values={activeCapabilities(model)} limit={8} /></DetailSection>
+          <DetailSection title="Cloud availability" sources={fieldSources(model, "availability")}><AvailabilityDetails model={model} /></DetailSection>
+          <DetailSection title="Input modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.input} /></DetailSection>
+          <DetailSection title="Output modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.output} /></DetailSection>
+          <DetailSection title="Tasks" sources={fieldSources(model, "tasks")}><Chips values={model.tasks} limit={8} /></DetailSection>
+          <DetailSection title="Use cases" sources={fieldSources(model, "use_cases")}><Chips values={model.use_cases} limit={8} /></DetailSection>
+          <DetailSection title="Average price" sources={fieldSources(model, "average_price")}><PriceDetails model={model} /></DetailSection>
+          <DetailSection title="Retirement" sources={fieldSources(model, "retirement")}>
             {model.retirement ? <ul className="metric-list">
               {model.retirement.schedules.map(schedule => <li key={schedule.offering}><strong>{schedule.offering}</strong> · {schedule.dates.map(formatDate).join(", ")}</li>)}
               {(model.retirement.replacement || model.retirement.replacement_name) && <li><strong>Replacement</strong> · {model.retirement.replacement ?? model.retirement.replacement_name}</li>}
@@ -501,21 +548,24 @@ function ModelDetails({ model }: { model: CatalogRow }) {
           <DetailSection title="Rankings">
             {rankings.length ? <ul className="metric-list">{rankings.map(ranking => (
               <li key={`${ranking.domain}-${ranking.category}-${ranking.rank}`}>
-                <strong>#{ranking.rank}</strong> {ranking.domain} · {ranking.category}
+                <strong>#{ranking.rank}</strong> <SourcedText sources={ranking.sources}>{titleCase(ranking.domain)}</SourcedText> · {titleCase(ranking.category)}
               </li>
             ))}</ul> : <p className="muted">No rankings published.</p>}
           </DetailSection>
           <DetailSection title="Benchmarks">
             {benchmarks.length ? <ul className="metric-list">{benchmarks.map(benchmark => (
               <li key={`${benchmark.name}-${benchmark.rank}`}>
-                <strong>#{benchmark.rank}</strong> {benchmark.name} · {benchmark.score}
+                <strong>#{benchmark.rank}</strong> <SourcedText sources={benchmark.sources}>{benchmark.name}</SourcedText> · {benchmark.score}
               </li>
             ))}</ul> : <p className="muted">No benchmarks published.</p>}
           </DetailSection>
-          <DetailSection title="Aliases"><Chips values={model.aliases} limit={12} /></DetailSection>
+          <DetailSection title="Aliases" sources={fieldSources(model, "aliases")}><Chips values={model.aliases} limit={12} /></DetailSection>
           <DetailSection title="Notices">
             {model.notices.length ? <ul className="metric-list">{model.notices.map((notice, index) => (
-              <li key={`${notice.kind}-${index}`}><strong>{notice.title ?? titleCase(notice.kind)}</strong><span className="metric-detail">{notice.text}</span></li>
+              <li key={`${notice.kind}-${index}`}>
+                <strong><SourcedText sources={notice.sources}>{notice.title ?? titleCase(notice.kind)}</SourcedText></strong>
+                <span className="metric-detail">{notice.text}</span>
+              </li>
             ))}</ul> : <p className="muted">No notices published.</p>}
           </DetailSection>
         </div>
@@ -677,10 +727,13 @@ function App() {
       filterFn: (row, _columnId, value) => `${row.original.name} ${row.original.id}`.toLocaleLowerCase().includes(String(value).trim().toLocaleLowerCase()),
       header: "Model",
       cell: ({ row }) => (
-        <button className="model-button" type="button" onClick={() => setSelected(row.original)}>
-          <span>{row.original.name}</span>
-          <code>{row.original.id}</code>
-        </button>
+        <div className="model-cell">
+          <button className="model-button" type="button" onClick={() => setSelected(row.original)}>
+            <span>{row.original.name}</span>
+            <code>{row.original.id}</code>
+          </button>
+          <SourceLinks sources={fieldSources(row.original, "name")} />
+        </div>
       ),
     },
     { id: "status", accessorKey: "status", header: "Status", filterFn: enumFilter, cell: info => <span className={`status status-${info.getValue()}`}>{titleCase(String(info.getValue()))}</span> },
@@ -698,9 +751,9 @@ function App() {
     { id: "outputModalities", accessorFn: row => row.modalities.output, header: "Output modalities", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.modalities.output} /> },
     { id: "tasks", accessorFn: row => row.tasks, header: "Tasks", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.tasks} /> },
     { id: "useCases", accessorFn: row => row.use_cases, header: "Use cases", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.use_cases} /> },
-    { id: "overallRank", accessorFn: row => bestOverallRanking(row)?.rank, header: "Best overall rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestOverallRanking(row.original); return ranking ? <span><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)}</span> : "—"; } },
-    { id: "categoryRank", accessorFn: row => bestCategoryRanking(row)?.rank, header: "Best category rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestCategoryRanking(row.original); return ranking ? <span><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)} · {titleCase(ranking.category)}</span> : "—"; } },
-    { id: "benchmarks", accessorFn: row => topBenchmark(row)?.rank, header: "Top benchmark", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const benchmark = topBenchmark(row.original); return benchmark ? <span><strong>#{benchmark.rank}</strong> {benchmark.name} · {benchmark.score}</span> : "—"; } },
+    { id: "overallRank", accessorFn: row => bestOverallRanking(row)?.rank, header: "Best overall rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestOverallRanking(row.original); return ranking ? <span><strong>#{ranking.rank}</strong> <SourcedText sources={ranking.sources}>{titleCase(ranking.domain)}</SourcedText></span> : "—"; } },
+    { id: "categoryRank", accessorFn: row => bestCategoryRanking(row)?.rank, header: "Best category rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestCategoryRanking(row.original); return ranking ? <span><strong>#{ranking.rank}</strong> <SourcedText sources={ranking.sources}>{titleCase(ranking.domain)}</SourcedText> · {titleCase(ranking.category)}</span> : "—"; } },
+    { id: "benchmarks", accessorFn: row => topBenchmark(row)?.rank, header: "Top benchmark", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const benchmark = topBenchmark(row.original); return benchmark ? <span><strong>#{benchmark.rank}</strong> <SourcedText sources={benchmark.sources}>{benchmark.name}</SourcedText> · {benchmark.score}</span> : "—"; } },
     { id: "openWeights", accessorFn: row => row.open_weights == null ? "Unknown" : row.open_weights ? "Yes" : "No", header: "Open weights", filterFn: enumFilter, cell: ({ row }) => row.original.open_weights == null ? "—" : row.original.open_weights ? "Yes" : "No" },
     { id: "released", accessorKey: "release_date", header: "Released", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
     { id: "updated", accessorKey: "last_updated", header: "Updated", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },

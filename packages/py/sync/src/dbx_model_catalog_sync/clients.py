@@ -11,6 +11,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Generic, TypeVar
+from urllib.parse import quote, urljoin
 from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup, Tag
@@ -137,7 +138,6 @@ class LMArenaSyncClient(SyncClient[LMArenaCatalogData]):
 
     def read(self) -> LMArenaCatalogData:
         try:
-            import pyarrow.compute as compute
             import pyarrow.parquet as parquet
             from huggingface_hub import HfApi, hf_hub_download
         except ImportError as error:
@@ -166,9 +166,19 @@ class LMArenaSyncClient(SyncClient[LMArenaCatalogData]):
             schema = parquet.read_schema(local)
             columns = [name for name in LMArenaRow.model_fields if name in schema.names]
             table = parquet.read_table(local, columns=columns)
-            if "rank" in table.column_names:
-                table = table.filter(compute.is_valid(table["rank"]))
-            rows = [LMArenaRow.model_validate(row) for row in table.to_pylist()]
+            rows = [
+                LMArenaRow.model_validate(
+                    {
+                        **row,
+                        "sourceUrl": (
+                            f"https://huggingface.co/datasets/{LM_ARENA_DATASET}/blob/main/"
+                            f"{quote(path, safe='/')}?sql_row={row_index}"
+                        ),
+                    }
+                )
+                for row_index, row in enumerate(table.to_pylist())
+                if row.get("rank") not in (None, "")
+            ]
             configurations.setdefault(
                 configuration, LMArenaConfiguration(rows=[])
             ).rows.extend(rows)
@@ -208,14 +218,33 @@ class LiveBenchSyncClient(SyncClient[LiveBenchCatalogData]):
         categories = json.loads(self.fetcher(f"{base}/{files['categories']}", {"accept": "application/json"}))
         table = self.fetcher(f"{base}/{files['table']}", {"accept": "text/csv"}).decode()
         rows = []
-        for record in csv.DictReader(table.splitlines()):
+        table_url = (
+            f"https://github.com/{LIVEBENCH_REPOSITORY}/blob/"
+            f"{LIVEBENCH_BRANCH}/public/{files['table']}"
+        )
+        for line_number, record in enumerate(
+            csv.DictReader(table.splitlines()), start=2
+        ):
             model = (record.pop("model", None) or "").strip()
             if not model:
                 raise ValueError("LiveBench leaderboard row is missing its model")
             scores = {name: None if not value.strip() else float(value) for name, value in record.items()}
-            rows.append(LiveBenchRow(model=model, scores=scores))
+            rows.append(
+                LiveBenchRow(
+                    model=model,
+                    sourceUrl=f"{table_url}#L{line_number}",
+                    scores=scores,
+                )
+            )
         return self.parse(
-            {"dataset": LIVEBENCH_DATASET, "release": release, "metadata": metadata, "categories": categories, "rows": rows}
+            {
+                "dataset": LIVEBENCH_DATASET,
+                "release": release,
+                "sourceUrl": table_url,
+                "metadata": metadata,
+                "categories": categories,
+                "rows": rows,
+            }
         )
 
 
@@ -256,6 +285,7 @@ class DatabricksSyncClient(SyncClient[DatabricksCatalogData]):
 def parse_databricks_supported_models_page(html: str, source_url: str) -> DatabricksSupportedModelsPage:
     soup = BeautifulSoup(html, "html.parser")
     canonical = soup.select_one('link[rel="canonical"]')
+    page_url = canonical.get("href") if canonical else source_url
     title = _text(soup.find("h1")) or "Supported models"
     description = soup.select_one('meta[name="description"]')
     modified = soup.select_one('meta[property="article:modified_time"]')
@@ -272,7 +302,7 @@ def parse_databricks_supported_models_page(html: str, source_url: str) -> Databr
             continue
         if element.name == "div" and _notice_kind(element):
             if models:
-                notice = _parse_notice(element)
+                notice = _parse_notice(element, page_url)
                 if notice:
                     models[-1].notices.append(DatabricksNotice.model_validate(notice))
             continue
@@ -311,7 +341,7 @@ def parse_databricks_supported_models_page(html: str, source_url: str) -> Databr
     models = [model for model in models if model.endpoint_name or model.service_name]
     return DatabricksSupportedModelsPage(
         metadata={
-            "sourceUrl": canonical.get("href") if canonical else source_url,
+            "sourceUrl": page_url,
             "title": title,
             "description": description.get("content") if description else None,
             "modifiedAt": modified.get("content") if modified else None,
@@ -666,7 +696,7 @@ def _notice_kind(tag: Tag | None) -> str | None:
     return match.group(1).lower() if match else None
 
 
-def _parse_notice(tag: Tag) -> dict[str, object] | None:
+def _parse_notice(tag: Tag, source_url: str) -> dict[str, object] | None:
     kind = _notice_kind(tag)
     if not kind:
         return None
@@ -679,4 +709,12 @@ def _parse_notice(tag: Tag) -> dict[str, object] | None:
             continue
         parts.append(value)
     text = " ".join(dict.fromkeys(parts))
-    return {"kind": kind, "text": text, "links": []} if text else None
+    links = [
+        {
+            "label": _text(link) or "Linked documentation",
+            "url": urljoin(source_url, link["href"]),
+        }
+        for link in tag.find_all("a", href=True)
+        if urljoin(source_url, link["href"]).startswith(("http://", "https://"))
+    ]
+    return {"kind": kind, "text": text, "links": links} if text else None

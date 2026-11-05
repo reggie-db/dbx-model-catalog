@@ -32,6 +32,7 @@ def model(name: str, status: str, tasks: list[str]) -> dict[str, object]:
         "availability": {},
         "price": {},
         "average_price": {},
+        "sources": {},
         "notices": [],
         "rankings": [],
         "benchmarks": [],
@@ -62,6 +63,7 @@ def catalog() -> dict[str, object]:
                     "category": "overall",
                     "rank": 2,
                     "published_at": "2026-10-30",
+                    "sources": [],
                     "metric": "rating",
                     "rating": 1_250,
                     "lower": 1_200,
@@ -74,6 +76,7 @@ def catalog() -> dict[str, object]:
                     "category": "coding",
                     "rank": 1,
                     "published_at": "2026-10-30",
+                    "sources": [],
                     "metric": "score",
                     "score": 0.95,
                     "lower": 0.9,
@@ -87,7 +90,7 @@ def catalog() -> dict[str, object]:
     llama = model("Llama Active", "active", ["chat"])
     llama["limits"] = {"context": 8_192}
     return {
-        "schema_version": 14,
+        "schema_version": 15,
         "updated_at": "2026-10-31T12:00:00.000Z",
         "models": {
             "databricks-gpt-active": active,
@@ -106,7 +109,7 @@ def test_reads_brotli_and_injected_fetch(catalog: dict[str, object]) -> None:
         "https://example.com/catalog.json.br", fetch=lambda _: payload
     )
 
-    assert client.schema_version == 14
+    assert client.schema_version == 15
     assert client.size == 3
     assert client.get("databricks-gpt-active").name == "GPT Active"
     assert fetched.get("databricks-llama").name == "Llama Active"

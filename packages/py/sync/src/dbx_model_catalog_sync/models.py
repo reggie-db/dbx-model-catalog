@@ -110,6 +110,7 @@ class ModelParamsData(LooseModel):
 
 class LMArenaRow(LooseModel):
     model_name: str
+    source_url: str | None = Field(default=None, alias="sourceUrl")
     organization: str | None = None
     license: str | None = None
     rank: int | None = None
@@ -150,12 +151,14 @@ class LMArenaCatalogData(LooseModel):
 
 class LiveBenchRow(LooseModel):
     model: str
+    source_url: str | None = Field(default=None, alias="sourceUrl")
     scores: dict[str, float | None]
 
 
 class LiveBenchCatalogData(LooseModel):
     dataset: str
     release: str
+    source_url: str | None = Field(default=None, alias="sourceUrl")
     metadata: list[dict[str, Any]]
     categories: dict[str, list[str]]
     rows: list[LiveBenchRow]
