@@ -74,5 +74,17 @@ jobs:
           if npm view "$PACKAGE@$VERSION" version >/dev/null 2>&1; then
             echo "$PACKAGE@$VERSION is already published."
           else
-            npm publish "$TARBALL" --access public
+            PUBLISH_LOG="$(mktemp)"
+            set +e
+            npm publish "$TARBALL" --access public 2>&1 | tee "$PUBLISH_LOG"
+            PUBLISH_STATUS="${PIPESTATUS[0]}"
+            set -e
+            if [ "$PUBLISH_STATUS" -eq 0 ]; then
+              exit 0
+            fi
+            if grep -Eq 'previously (published|staged) version' "$PUBLISH_LOG"; then
+              echo "$PACKAGE@$VERSION was already accepted by the registry."
+              exit 0
+            fi
+            exit "$PUBLISH_STATUS"
           fi
