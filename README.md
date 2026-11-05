@@ -144,7 +144,7 @@ started manually. Each run:
 1. Fetches every configured source with `--refresh`.
 2. Normalizes and validates the complete catalog.
 3. Commits only `packages/js/web/catalog.json` when data changed.
-4. Triggers the Pages deployment through the resulting `main` push.
+4. Triggers the Pages deployment after the publication workflow succeeds.
 
 Source responses and intermediate files remain ephemeral on the GitHub runner.
 `HF_TOKEN` is an optional Actions secret used for authenticated Hugging Face
