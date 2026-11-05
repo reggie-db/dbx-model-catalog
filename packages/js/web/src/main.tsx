@@ -1187,7 +1187,7 @@ function App() {
           <div className="brand-block">
             <BrandLogo className="brand-logo" />
             <span className="brand-divider" aria-hidden="true" />
-            <div><h1>Model Catalog</h1><p>Databricks serving models</p></div>
+            <h1>Model Catalog</h1>
           </div>
           <nav className="top-actions" aria-label="Catalog actions">
             <span className="schema-version">v{catalog?.schema_version ?? "—"}</span>

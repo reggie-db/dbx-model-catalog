@@ -18,7 +18,6 @@ a { color: inherit; }
 .brand-divider { width: 1px; height: 34px; background: var(--border); }
 .brand-block { gap: 16px; }
 .brand-block h1 { margin: 0; font-size: 1.02rem; font-weight: 700; letter-spacing: -0.01em; }
-.brand-block p { margin: 2px 0 0; color: var(--muted-foreground); font-size: 0.78rem; }
 .top-actions { gap: 8px; }
 .top-actions svg, .table-actions svg { width: 14px; height: 14px; }
 .schema-version { color: var(--muted-foreground); font-family: var(--brand-font-mono); font-size: 0.75rem; }
@@ -179,7 +178,7 @@ td { max-width: none; vertical-align: top; }
   .topbar, main { width: calc(100% - 24px); }
   .topbar { align-items: flex-start; padding-block: 18px; }
   .brand-logo { width: 96px; }
-  .brand-divider, .brand-block p { display: none; }
+  .brand-divider { display: none; }
   .top-actions { flex-wrap: wrap; justify-content: flex-end; }
   main { padding-block: 12px 14px; }
   .summary-grid { display: flex; overflow-x: auto; overscroll-behavior-inline: contain; }
