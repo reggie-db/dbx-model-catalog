@@ -9,19 +9,18 @@
     "@chanx-js/client": "2.3.2"
   },
   "scripts": {
-    "generate": "bun packages/js/common/scripts/generate.ts",
-    "typecheck": "bun run typecheck:node && bun run typecheck:web && bun run typecheck:sync",
-    "typecheck:node": "bun run tsc --noEmit -p packages/js/node/tsconfig.json",
+    "generate": "bun packages/js/client/scripts/generate.ts",
+    "typecheck": "bun run typecheck:client && bun run typecheck:web",
+    "typecheck:client": "bun run tsc --noEmit -p packages/js/client/tsconfig.json",
     "typecheck:web": "bun run tsc --noEmit -p packages/js/web/tsconfig.json",
-    "typecheck:sync": "bun run tsc --noEmit -p packages/js/sync/tsconfig.json",
-    "build": "bun run generate && bun run build:node && bun run build:web && uv build --package dbx-model-catalog",
-    "build:node": "bun packages/js/node/scripts/build.ts",
+    "build": "bun run generate && bun run build:client && bun run build:web && uv build --package dbx-model-catalog",
+    "build:client": "bun packages/js/client/scripts/build.ts",
     "build:web": "bun packages/js/web/scripts/build.ts",
-    "check": "bun run generate && uv run --project packages/py/common pytest packages/py/common/tests && uv run --project packages/py/sync pytest packages/py/sync/tests && bun test packages/js/node/test && bun run typecheck && bun run build:web && uv build --package dbx-model-catalog",
-    "serve": "bun run build:web && DBX_MODEL_CATALOG_PATH=packages/js/web/catalog.json uv run --project packages/py/server uvicorn dbx_model_catalog_server.app:app --host 127.0.0.1 --port 8787",
-    "chanx-model-catalog": "bun packages/js/node/src/cli.ts",
-    "sync": "bun packages/js/sync/src/cli.ts",
-    "catalog:publish": "bun packages/js/sync/src/cli.ts --output-directory packages/js/web"
+    "check": "bun run generate && bun run build:client && uv run --project packages/py/core pytest packages/py/core/tests && uv run --project packages/py/sync pytest packages/py/sync/tests && bun test packages/js/client/test packages/js/web/test && bun run typecheck && bun run build:web && uv build --package dbx-model-catalog",
+    "serve": "bun run generate && bun run build:client && bun run build:web && DBX_MODEL_CATALOG_PATH=packages/js/web/catalog.json uv run --project packages/py/server uvicorn dbx_model_catalog_server.app:app --host 127.0.0.1 --port 8787",
+    "chanx-model-catalog": "bun packages/js/client/src/cli.ts",
+    "sync": "uv run --project packages/py/sync dbx-model-catalog-sync",
+    "catalog:publish": "uv run --project packages/py/sync dbx-model-catalog-sync --output-directory packages/js/web"
   },
   "devDependencies": {
     "@databricks/appkit-ui": "0.81.0",

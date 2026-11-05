@@ -13,11 +13,13 @@ JavaScript packages use the `@dbx-tools` scope.
 
 - Explorer: <https://reggie-db.github.io/dbx-model-catalog/>
 - Stable JSON: <https://reggie-db.github.io/dbx-model-catalog/catalog.json>
+- SQLite database: <https://reggie-db.github.io/dbx-model-catalog/catalog.sqlite>
 
 GitHub Pages is the public distribution endpoint. It provides a stable URL for
 clients without requiring release-tag discovery or GitHub API authentication.
-The repository stores one generated data artifact:
-`packages/js/web/catalog.json`.
+The repository stores the generated catalog, its Python-owned derived search
+index, and a queryable SQLite database in `packages/js/web/catalog.json`,
+`packages/js/web/search-index.json`, and `packages/js/web/catalog.sqlite`.
 
 In the explorer, model names open the model details. Ranking and benchmark
 values link to their upstream leaderboards; LM Arena entries use the official
@@ -51,7 +53,7 @@ The catalog has this top-level shape:
 ```
 
 Schema consumers should check `schema_version`. The complete JSON Schema is at
-`packages/py/common/src/dbx_model_catalog/schema/model-catalog.schema.json`.
+`packages/py/core/src/dbx_model_catalog/schema/model-catalog.schema.json`.
 
 ## Raw HTTP clients
 
@@ -75,11 +77,29 @@ const activeModels = Object.entries(catalog.models)
   .filter(([, model]) => model.status === "active");
 ```
 
+Download and query the maintained SQLite database:
+
+```sh
+curl -fsSL https://reggie-db.github.io/dbx-model-catalog/catalog.sqlite \
+  -o catalog.sqlite
+sqlite3 catalog.sqlite \
+  "SELECT id, name FROM models WHERE status = 'active' ORDER BY name"
+```
+
+The database includes normalized model, availability, ranking, benchmark, and
+search tables. `model_search` is an FTS5 index derived from the same Python
+search documents used by the browser.
+
 ## Python client
 
 The `dbx-model-catalog` Python package validates the published data with
 Pydantic and provides typed list, filter, query, and ranked search operations.
 `from_published()` caches the downloaded catalog for one hour by default.
+The client builds one in-memory search index per catalog snapshot. Ranking
+combines text relevance with separate version, freshness, lifecycle,
+leaderboard, and benchmark signals. Leaderboards are age-decayed and missing
+leaderboard or benchmark evidence is neutral, so a new model is not penalized
+while evaluations catch up.
 
 ```py
 from dbx_model_catalog import ModelCatalogClient
@@ -156,8 +176,10 @@ started manually. Each run:
 
 1. Fetches every configured source with `--refresh`.
 2. Normalizes and validates the complete catalog.
-3. Commits only `packages/js/web/catalog.json` when data changed.
-4. Triggers the Pages deployment after the publication workflow succeeds.
+3. Builds and validates the JSON catalog, search index, and SQLite database.
+4. Commits `packages/js/web/catalog.json`, `packages/js/web/search-index.json`,
+   and `packages/js/web/catalog.sqlite` when data changed.
+5. Triggers the Pages deployment after the publication workflow succeeds.
 
 Source responses and intermediate files remain ephemeral on the GitHub runner.
 `HF_TOKEN` is an optional Actions secret used for authenticated Hugging Face
@@ -187,14 +209,12 @@ bun run build
 
 The repository layout is:
 
-- `packages/py/common`: schema, Pydantic models, loading, filtering, and search
+- `packages/py/core`: schema, Pydantic models, loading, filtering, and search
 - `packages/py/server`: Chanx WebSocket server and Pynect worker
 - `packages/py/sync`: source ingestion, normalization, and catalog publication
-- `packages/js/common`: generated Pynect contract and shared client wrapper
-- `packages/js/node`: Node/Bun IPC and WebSocket client
-- `packages/js/sync`: Bun entry point for the Python synchronization package
-- `packages/js/web`: catalog explorer and the published JSON artifact
+- `packages/js/client`: generated Pynect contract plus browser and Node/Bun clients
+- `packages/js/web`: catalog explorer and published JSON, search, and SQLite artifacts
 
 Python owns the schema and service contract. Pynect generates the TypeScript
-types in `packages/js/common/src/_generated`; handwritten TypeScript does not
+types in `packages/js/client/src/_generated`; handwritten TypeScript does not
 duplicate the Python models.

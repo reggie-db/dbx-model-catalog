@@ -2,6 +2,8 @@ name: Check
 
 on:
   merge_group:
+    types:
+      - checks_requested
   pull_request:
   push:
     branches:
@@ -12,7 +14,7 @@ permissions:
 
 concurrency:
   group: check-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -36,3 +38,13 @@ jobs:
         run: bun install
       - name: Run workspace checks
         run: bun run check
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dbx-model-catalog-build
+          if-no-files-found: error
+          path: |
+            dist/*.tar.gz
+            dist/*.whl
+            packages/js/client/dist
+            packages/js/web/dist

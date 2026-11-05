@@ -10,6 +10,7 @@ from chanx.messages.base import BaseMessage
 from dbx_model_catalog import (
     CatalogFilters,
     CatalogModelRecord,
+    CatalogSearchIndexPayload,
     ModelCatalog,
     ModelCatalogClient,
 )
@@ -27,6 +28,16 @@ class GetCatalogRequest(BaseMessage):
 class GetCatalogResponse(BaseMessage):
     action: Literal["catalog"] = "catalog"
     payload: ModelCatalog
+
+
+class GetSearchIndexRequest(BaseMessage):
+    action: Literal["get_search_index"] = "get_search_index"
+    payload: CatalogFilters
+
+
+class GetSearchIndexResponse(BaseMessage):
+    action: Literal["search_index"] = "search_index"
+    payload: CatalogSearchIndexPayload
 
 
 class ListModelsRequest(BaseMessage):
@@ -71,6 +82,13 @@ class ModelsConsumer(AsyncJsonWebsocketConsumer):
     @ws_handler
     async def get_catalog(self, _message: GetCatalogRequest) -> GetCatalogResponse:
         return GetCatalogResponse(payload=catalog.catalog)
+
+    @ws_handler
+    async def get_search_index(
+        self,
+        _message: GetSearchIndexRequest,
+    ) -> GetSearchIndexResponse:
+        return GetSearchIndexResponse(payload=catalog.search_index)
 
     @ws_handler
     async def list_models(self, message: ListModelsRequest) -> ListModelsResponse:

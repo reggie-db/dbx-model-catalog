@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "build": "bun scripts/build.ts",
+    "test": "bun test",
     "typecheck": "bun run tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@dbx-tools/dbx-model-catalog-common": "workspace:*"
+    "@dbx-tools/dbx-model-catalog": "workspace:*",
+    "fuse.js": "^7.4.2"
   }
 }

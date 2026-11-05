@@ -13,6 +13,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
   Label,
   Popover,
   PopoverContent,
@@ -90,9 +93,11 @@ import {
   type CatalogClient,
   type CatalogModel,
   type CatalogModelRecord,
+  type CatalogSearchIndexPayload,
   type ModelCatalog as CatalogPayload,
   type SourceLink,
-} from "@dbx-tools/dbx-model-catalog-common";
+} from "@dbx-tools/dbx-model-catalog/browser";
+import { searchStaticCatalog } from "./search.js";
 
 type Cloud = "aws" | "azure" | "gcp";
 type Ranking = CatalogModel["rankings"][number];
@@ -105,7 +110,6 @@ type CatalogIcon = ComponentType<{
 
 interface CatalogRow extends CatalogModelRecord {
   searchRank: number;
-  searchText: string;
 }
 
 interface EnumOption {
@@ -393,6 +397,12 @@ async function loadStaticCatalog(): Promise<CatalogPayload> {
   const response = await fetch("catalog.json", { cache: "no-cache" });
   if (response.ok) return await response.json() as CatalogPayload;
   throw new Error(`Catalog request failed with ${response.status}`);
+}
+
+async function loadStaticSearchIndex(): Promise<CatalogSearchIndexPayload> {
+  const response = await fetch("search-index.json", { cache: "no-cache" });
+  if (response.ok) return await response.json() as CatalogSearchIndexPayload;
+  throw new Error(`Search index request failed with ${response.status}`);
 }
 
 function searchText(id: string, model: CatalogModel) {
@@ -730,7 +740,7 @@ function ModelDetails({ model }: { model: CatalogRow }) {
     model.retirement.replacement_name
   ));
   const rawJson = useMemo(() => {
-    const { id, searchRank: _searchRank, searchText: _searchText, ...record } = model;
+    const { id, searchRank: _searchRank, ...record } = model;
     return JSON.stringify({ id, ...record }, null, 2);
   }, [model]);
   const jsonView = view === "json";
@@ -839,6 +849,7 @@ function App() {
   const catalogClient = useRef<CatalogClient | null>(null);
   const [initialTablePreferences] = useState(loadTablePreferences);
   const [catalog, setCatalog] = useState<CatalogPayload | null>(null);
+  const [staticSearchIndex, setStaticSearchIndex] = useState<CatalogSearchIndexPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [searchResult, setSearchResult] = useState<{ query: string; records: CatalogModelRecord[] } | null>(null);
@@ -878,7 +889,12 @@ function App() {
     const staticCatalog = window.location.hostname.endsWith(".github.io");
     const client = staticCatalog ? null : createCatalogClient({ baseUrl: catalogWebSocketUrl() });
     catalogClient.current = client;
-    const request = client ? client.catalog() : loadStaticCatalog();
+    const request = client
+      ? client.catalog()
+      : Promise.all([loadStaticCatalog(), loadStaticSearchIndex()]).then(([value, searchIndex]) => {
+          if (active) setStaticSearchIndex(searchIndex);
+          return value;
+        });
     request
       .then(value => { if (active) setCatalog(value); })
       .catch(cause => { if (active) setError(cause instanceof Error ? cause.message : "Could not load the catalog."); });
@@ -894,7 +910,6 @@ function App() {
       ...model,
       id,
       searchRank: Number.MAX_SAFE_INTEGER,
-      searchText: searchText(id, model),
     })),
   [catalog]);
 
@@ -923,7 +938,11 @@ function App() {
       const client = catalogClient.current;
       const request = client
         ? client.list({ query: search.trim(), limit: 1_000 })
-        : Promise.resolve(models.filter(model => model.searchText.includes(normalizedSearch)));
+        : Promise.resolve(
+            staticSearchIndex
+              ? searchStaticCatalog(staticSearchIndex, models, search.trim())
+              : models.filter(model => searchText(model.id, model).includes(normalizedSearch)),
+          );
       request
         .then(records => {
           if (active) setSearchResult({ query: normalizedSearch, records });
@@ -932,7 +951,7 @@ function App() {
           if (active) {
             setSearchResult({
               query: normalizedSearch,
-              records: models.filter(model => model.searchText.includes(normalizedSearch)),
+              records: models.filter(model => searchText(model.id, model).includes(normalizedSearch)),
             });
           }
         })
@@ -942,7 +961,7 @@ function App() {
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [catalog, models, normalizedSearch, search]);
+  }, [catalog, models, normalizedSearch, search, staticSearchIndex]);
 
   useEffect(() => {
     setSorting(current => {
@@ -962,7 +981,6 @@ function App() {
     return searchResult.records.map((model, searchRank) => ({
       ...model,
       searchRank,
-      searchText: searchText(model.id, model),
     }));
   }, [hasSearch, models, normalizedSearch, searchResult]);
 
@@ -1194,7 +1212,10 @@ function App() {
           <section className="catalog-search" aria-label="Catalog search">
             <div className="search-field">
               <Label htmlFor="catalog-search">Search</Label>
-              <div className="search-control"><Search aria-hidden="true" /><Input id="catalog-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, ID, publisher, family, task…" /></div>
+              <InputGroup className="search-control">
+                <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
+                <InputGroupInput id="catalog-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, ID, publisher, family, task…" />
+              </InputGroup>
             </div>
           </section>
 

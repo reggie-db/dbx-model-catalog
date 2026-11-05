@@ -1,0 +1,34 @@
+{
+  "name": "@dbx-tools/dbx-model-catalog",
+  "version": "0.1.0",
+  "description": "Thin Node client for the Python-owned dbx-model-catalog service",
+  "type": "module",
+  "bin": {
+    "dbx-model-catalog": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./src/browser.ts",
+      "default": "./dist/browser.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@chanx-js/client": "2.3.2",
+    "pynect": "0.8.14"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  },
+  "sideEffects": false
+}

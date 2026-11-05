@@ -21,7 +21,7 @@ packages = ["src/dbx_model_catalog_server"]
 [tool.pynect]
 name = "dbx-model-catalog"
 app = "dbx_model_catalog_server.app:app"
-out = "../../js/common/src/_generated"
+out = "../../js/client/src/_generated"
 
 [tool.uv.sources]
 dbx-model-catalog = { workspace = true }

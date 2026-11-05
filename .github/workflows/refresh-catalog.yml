@@ -36,15 +36,25 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: bun run sync --refresh --output-directory packages/js/web
+      - name: Validate catalog database
+        run: |
+          uv run --project packages/py/core python - <<'PY'
+          import sqlite3
+
+          with sqlite3.connect("packages/js/web/catalog.sqlite") as database:
+              result = database.execute("PRAGMA integrity_check").fetchone()
+          if result != ("ok",):
+              raise SystemExit(f"SQLite integrity check failed: {result}")
+          PY
       - name: Commit catalog updates
         run: |
-          if git diff --quiet -- packages/js/web/catalog.json; then
+          if git diff --quiet -- packages/js/web/catalog.json packages/js/web/search-index.json packages/js/web/catalog.sqlite; then
             echo "Catalog is unchanged."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/js/web/catalog.json
+          git add packages/js/web/catalog.json packages/js/web/search-index.json packages/js/web/catalog.sqlite
           git commit -m "Refresh published model catalog"
           git pull --rebase
           git push
