@@ -538,7 +538,7 @@ function PriceDetails({ model }: { model: CatalogModel }) {
                 <th scope="col">Plan</th>
                 <th scope="col">Context</th>
                 <th scope="col">Meter</th>
-                {currencies.map(currency => <th scope="col" key={currency}>{currency}</th>)}
+                {currencies.map(currency => <th className="price-currency" scope="col" key={currency}>{currency}</th>)}
               </tr>
             </thead>
             <tbody>

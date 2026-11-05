@@ -109,13 +109,14 @@ td { max-width: 360px; vertical-align: top; }
 .detail-section p { margin: 0; font-size: 0.82rem; }
 .metric-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; font-size: 0.82rem; }
 .metric-detail { display: block; margin-top: 3px; color: var(--muted-foreground); line-height: 1.45; }
+.price-tables, .price-group { min-width: 0; }
 .price-tables { display: grid; gap: 12px; }
 .price-unit { margin-bottom: 6px !important; color: var(--muted-foreground); font-size: 0.74rem !important; font-weight: 650; }
-.price-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.price-table-scroll { width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
 .price-table { width: 100%; min-width: 580px; border-collapse: collapse; font-size: 0.78rem; }
 .price-table th, .price-table td { max-width: none; padding: 8px 10px; border-bottom: 1px solid var(--border); }
 .price-table thead th { position: sticky; z-index: 1; top: 0; background: var(--muted); color: var(--muted-foreground); font-size: 0.7rem; font-weight: 650; text-align: left; }
-.price-table thead th:nth-last-child(-n + 2) { text-align: right; }
+.price-table thead .price-currency { text-align: right; }
 .price-table tbody th { position: static; background: var(--background); font-weight: 650; text-align: left; vertical-align: top; }
 .price-table tbody tr:last-child > * { border-bottom: 0; }
 .price-number { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }

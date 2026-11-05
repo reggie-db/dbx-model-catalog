@@ -1,16 +1,22 @@
-# @regbo/dbx-model-catalog
+# @dbx-tools/dbx-model-catalog
 
-The Node client uses local Pynect IPC unless a WebSocket URL is supplied.
+The Node client connects to the Python-owned model catalog contract. It starts a
+local Pynect worker by default or connects to a remote Chanx WebSocket server
+when a URL is provided.
 
 ```ts
-import { connectModelCatalog } from '@regbo/dbx-model-catalog';
+import { connectModelCatalog } from "@dbx-tools/dbx-model-catalog";
 
-await using catalog = await connectModelCatalog();
-console.log(await catalog.client.list({ query: 'gpt' }));
+await using local = await connectModelCatalog();
+const matches = await local.client.list({ query: "gpt", limit: 10 });
 
-await using remote = await connectModelCatalog('wss://catalog.example.com');
-console.log(await remote.client.catalog());
+await using remote = await connectModelCatalog("wss://catalog.example.com");
+const catalog = await remote.client.catalog();
 ```
 
-The package contains no catalog models or transport adapters; both come from the
-Python-owned generated contract in `packages/js/common`.
+Pass `{ python: "/path/to/python" }` to select the Python executable used for
+the local worker. Generated catalog types are re-exported from this package.
+The package does not contain a separate JavaScript schema implementation.
+
+For direct public ingestion without the service client, fetch:
+<https://reggie-db.github.io/dbx-model-catalog/catalog.json>.

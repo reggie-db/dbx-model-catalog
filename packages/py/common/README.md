@@ -1,24 +1,36 @@
 # dbx-model-catalog
 
-Shared Pydantic models and local read/filter service for the Databricks model
-catalog.
+This Python package contains the Pydantic schema and local read, filter, query,
+and search client for the Databricks model catalog.
+
+Load the public catalog:
 
 ```py
 from dbx_model_catalog import ModelCatalogClient
 
 catalog = ModelCatalogClient.from_published()
 models = catalog.list()
-ranked = catalog.search("claude 5-6", limit=5)
+active = catalog.filter({"status": ["active"]})
+ranked = catalog.search("claude reasoning", limit=5)
 ```
 
-The package includes ordinary source-controlled Pydantic catalog models, JSON
-and Brotli loading, and a serializable query DSL. The
-published client caches the compressed normalized dataset for one hour in the
-platform-native user cache directory; pass `refresh=True` to replace it.
+`from_published()` downloads
+<https://reggie-db.github.io/dbx-model-catalog/catalog.json> and caches the
+payload for one hour in the platform-native user cache directory. Pass
+`refresh=True` to replace the cached value or `cache_ttl` to change its
+lifetime.
 
-`search()` uses RapidFuzz across model identities, publishers, capabilities,
-tasks, use cases, modalities, availability, rankings, benchmarks, and notices.
-It breaks relevance ties with lifecycle state, parsed version proximity,
-aggregate overall leaderboard rank, release date, and stable model identity.
-`filter({"query": ...})` uses the same ranking and returns ordinary model
-records in relevance order.
+Load explicit data when the published endpoint is not appropriate:
+
+```py
+from pathlib import Path
+from dbx_model_catalog import ModelCatalogClient
+
+local = ModelCatalogClient.from_json(Path("catalog.json").read_bytes())
+remote = ModelCatalogClient.from_url("https://example.com/catalog.json")
+```
+
+The client also supports Brotli payloads through `from_brotli()`. Search uses
+RapidFuzz across model identity, publisher, capabilities, tasks, use cases,
+modalities, availability, rankings, benchmarks, and notices. Query and filter
+operations return standard typed `CatalogModelRecord` lists.
