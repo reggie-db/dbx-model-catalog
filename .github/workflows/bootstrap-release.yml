@@ -69,3 +69,11 @@ jobs:
           else
             npm publish "$TARBALL" --access public
           fi
+      - name: Configure trusted publishing
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: |
+          npm trust github @dbx-tools/dbx-model-catalog \
+            --repo reggie-db/dbx-model-catalog \
+            --file release.yml \
+            --yes
