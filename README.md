@@ -24,11 +24,13 @@ values link to their upstream leaderboards; LM Arena entries use the official
 Arena leaderboard and retain the exact Hugging Face dataset row as a secondary
 source. The Columns menu controls visibility. Drag a table header handle to
 reorder columns. Drag a column divider to resize it or double-click the divider
-to fit its content. Column visibility, order, and widths are saved in local
-browser storage. Search matches across the catalog; each column header provides
-field-specific filtering. In model details, single-source values link directly
-to their source; numbered source markers are reserved for fields with multiple
-sources.
+to restore its default width. Column visibility, order, and widths are saved in
+local browser storage. Search matches across the catalog; each column header provides
+field-specific filtering. Model details omit empty sections. The braces and
+table icons switch between structured details and wrapped, syntax-highlighted
+JSON. Single-source values link directly to their source; numbered source
+markers are reserved for fields with multiple sources. Opening a model updates
+the URL with a `model` query parameter, so the current detail view can be shared.
 
 The catalog has this top-level shape:
 

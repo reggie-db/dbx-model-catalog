@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@databricks/appkit-ui/react";
 import { BrandLogo, BrandProvider } from "@dbx-tools/ui/branding/react";
+import { JsonBlock } from "@dbx-tools/ui/react";
 import AlibabaCloud from "@lobehub/icons/es/AlibabaCloud";
 import Anthropic from "@lobehub/icons/es/Anthropic";
 import BAAI from "@lobehub/icons/es/BAAI";
@@ -67,9 +68,9 @@ import {
   Columns3,
   Database,
   Download,
-  ExternalLink,
   FileText,
   Filter,
+  Github,
   Globe2,
   GripVertical,
   Image as ImageIcon,
@@ -77,6 +78,7 @@ import {
   Paperclip,
   RotateCcw,
   Search,
+  Table2,
   Type as TextIcon,
   Video,
   Wrench,
@@ -506,7 +508,7 @@ function SourcedText({ children, sources }: { children: ReactNode; sources: Sour
     const [source] = sources;
     return (
       <a className="sourced-text" href={source.url} target="_blank" rel="noreferrer" title={`Open ${source.label}`}>
-        {children}<ExternalLink aria-hidden="true" />
+        {children}
       </a>
     );
   }
@@ -613,6 +615,10 @@ function DetailSection({
   return <section className={`detail-section${wide ? " detail-section-wide" : ""}`}><h3><SourcedText sources={sources}>{title}</SourcedText></h3>{children}</section>;
 }
 
+function DetailPair({ children }: { children: ReactNode }) {
+  return <div className="detail-section-pair">{children}</div>;
+}
+
 function AvailabilityDetails({ model }: { model: CatalogModel }) {
   const entries = Object.entries(model.availability);
   if (!entries.length) return <p className="muted">No availability published.</p>;
@@ -711,16 +717,47 @@ function priceDimension(rateName: string) {
 }
 
 function ModelDetails({ model }: { model: CatalogRow }) {
+  const [view, setView] = useState<"details" | "json">("details");
   const rankings = [...model.rankings].sort((left, right) => left.rank - right.rank);
   const benchmarks = [...model.benchmarks].sort((left, right) => left.rank - right.rank);
+  const capabilities = activeCapabilities(model);
+  const hasAvailability = Object.keys(model.availability).length > 0;
+  const hasPrice = Object.keys(model.average_price).length > 0;
+  const hasRetirement = Boolean(model.retirement && (
+    model.retirement.schedules.length ||
+    model.retirement.replacement ||
+    model.retirement.replacement_name
+  ));
+  const rawJson = useMemo(() => {
+    const { id, searchRank: _searchRank, searchText: _searchText, ...record } = model;
+    return JSON.stringify({ id, ...record }, null, 2);
+  }, [model]);
+  const jsonView = view === "json";
+  const ViewIcon = jsonView ? Table2 : Braces;
+  const viewLabel = jsonView ? "Show model details" : "Show raw JSON";
   return (
     <>
+      <Button
+        className="dialog-view-toggle"
+        variant="ghost"
+        size="icon"
+        aria-label={viewLabel}
+        aria-pressed={jsonView}
+        title={viewLabel}
+        onClick={() => setView(current => current === "details" ? "json" : "details")}
+      >
+        <ViewIcon aria-hidden="true" />
+      </Button>
       <DialogHeader>
         <p className="model-id">{model.id}</p>
         <DialogTitle><SourcedText sources={fieldSources(model, "name")}>{model.name}</SourcedText></DialogTitle>
-        <DialogDescription>{model.description || "No description is available."}</DialogDescription>
+        <DialogDescription className={jsonView ? "visually-hidden" : undefined}>{model.description || "No description is available."}</DialogDescription>
       </DialogHeader>
-      <div className="model-dialog-body">
+      {jsonView ? (
+        <div className="model-dialog-body model-dialog-json" role="region" tabIndex={0} aria-label={`${model.name} raw JSON`}>
+          <JsonBlock className="model-json" json={rawJson} />
+        </div>
+      ) : <div className="model-dialog-body">
         <dl className="detail-grid">
           {([
             ["status", "Status", <StatusMark status={model.status} />],
@@ -745,44 +782,54 @@ function ModelDetails({ model }: { model: CatalogRow }) {
           ))}
         </dl>
         <div className="detail-columns">
-          <DetailSection title="Capabilities" sources={fieldSources(model, "capabilities")}><Chips values={activeCapabilities(model)} kind="capability" limit={8} /></DetailSection>
-          <DetailSection title="Cloud availability" sources={fieldSources(model, "availability")}><AvailabilityDetails model={model} /></DetailSection>
-          <DetailSection title="Input modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.input} kind="modality" /></DetailSection>
-          <DetailSection title="Output modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.output} kind="modality" /></DetailSection>
-          <DetailSection title="Tasks" sources={fieldSources(model, "tasks")}><Chips values={model.tasks} humanize limit={8} /></DetailSection>
-          <DetailSection title="Use cases" sources={fieldSources(model, "use_cases")}><Chips values={model.use_cases} humanize limit={8} /></DetailSection>
-          <DetailSection title="Average price" sources={fieldSources(model, "average_price")} wide><PriceDetails model={model} /></DetailSection>
-          <DetailSection title="Retirement" sources={fieldSources(model, "retirement")}>
+          {model.aliases.length ? <DetailSection title="Aliases" sources={fieldSources(model, "aliases")} wide><Chips values={model.aliases} limit={12} /></DetailSection> : null}
+          {(capabilities.length || hasAvailability) ? <DetailPair>
+            {capabilities.length ? <DetailSection title="Capabilities" sources={fieldSources(model, "capabilities")}><Chips values={capabilities} kind="capability" limit={8} /></DetailSection> : null}
+            {hasAvailability ? <DetailSection title="Cloud availability" sources={fieldSources(model, "availability")}><AvailabilityDetails model={model} /></DetailSection> : null}
+          </DetailPair> : null}
+          {(model.modalities.input.length || model.modalities.output.length) ? <DetailPair>
+            {model.modalities.input.length ? <DetailSection title="Input modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.input} kind="modality" /></DetailSection> : null}
+            {model.modalities.output.length ? <DetailSection title="Output modalities" sources={fieldSources(model, "modalities")}><Chips values={model.modalities.output} kind="modality" /></DetailSection> : null}
+          </DetailPair> : null}
+          {(model.tasks.length || model.use_cases.length) ? <DetailPair>
+            {model.tasks.length ? <DetailSection title="Tasks" sources={fieldSources(model, "tasks")}><Chips values={model.tasks} humanize limit={8} /></DetailSection> : null}
+            {model.use_cases.length ? <DetailSection title="Use cases" sources={fieldSources(model, "use_cases")}><Chips values={model.use_cases} humanize limit={8} /></DetailSection> : null}
+          </DetailPair> : null}
+          {(rankings.length || benchmarks.length) ? <DetailPair>
+            {rankings.length ? <DetailSection title="Rankings">
+              <ul className="metric-list">{rankings.map(ranking => (
+                <li key={`${ranking.domain}-${ranking.category}-${ranking.rank}`}>
+                  <strong>#{ranking.rank}</strong>{" "}
+                  <TableSourceLink sources={ranking.sources}>{titleCase(ranking.domain)}</TableSourceLink>
+                  {ranking.category.toLocaleLowerCase() === "overall" ? null : <> · {titleCase(ranking.category)}</>}
+                </li>
+              ))}</ul>
+            </DetailSection> : null}
+            {benchmarks.length ? <DetailSection title="Benchmarks">
+              <ul className="metric-list">{benchmarks.map(benchmark => (
+                <li key={`${benchmark.name}-${benchmark.rank}`}>
+                  <strong>#{benchmark.rank}</strong> <TableSourceLink sources={benchmark.sources}>{benchmark.name}</TableSourceLink> · {benchmark.score}
+                </li>
+              ))}</ul>
+            </DetailSection> : null}
+          </DetailPair> : null}
+          {hasPrice ? <DetailSection title="Average price" sources={fieldSources(model, "average_price")} wide><PriceDetails model={model} /></DetailSection> : null}
+          {hasRetirement ? <DetailSection title="Retirement" sources={fieldSources(model, "retirement")} wide>
             {model.retirement ? <ul className="metric-list">
               {model.retirement.schedules.map(schedule => <li key={schedule.offering}><strong>{schedule.offering}</strong> · {schedule.dates.map(formatDate).join(", ")}</li>)}
               {(model.retirement.replacement || model.retirement.replacement_name) && <li><strong>Replacement</strong> · {model.retirement.replacement ?? model.retirement.replacement_name}</li>}
-            </ul> : <p className="muted">No retirement scheduled.</p>}
-          </DetailSection>
-          <DetailSection title="Rankings">
-            {rankings.length ? <ul className="metric-list">{rankings.map(ranking => (
-              <li key={`${ranking.domain}-${ranking.category}-${ranking.rank}`}>
-                <strong>#{ranking.rank}</strong> <SourcedText sources={ranking.sources}>{titleCase(ranking.domain)}</SourcedText> · {titleCase(ranking.category)}
-              </li>
-            ))}</ul> : <p className="muted">No rankings published.</p>}
-          </DetailSection>
-          <DetailSection title="Benchmarks">
-            {benchmarks.length ? <ul className="metric-list">{benchmarks.map(benchmark => (
-              <li key={`${benchmark.name}-${benchmark.rank}`}>
-                <strong>#{benchmark.rank}</strong> <SourcedText sources={benchmark.sources}>{benchmark.name}</SourcedText> · {benchmark.score}
-              </li>
-            ))}</ul> : <p className="muted">No benchmarks published.</p>}
-          </DetailSection>
-          <DetailSection title="Aliases" sources={fieldSources(model, "aliases")}><Chips values={model.aliases} limit={12} /></DetailSection>
-          <DetailSection title="Notices">
-            {model.notices.length ? <ul className="metric-list">{model.notices.map((notice, index) => (
+            </ul> : null}
+          </DetailSection> : null}
+          {model.notices.length ? <DetailSection title="Notices" wide>
+            <ul className="metric-list">{model.notices.map((notice, index) => (
               <li key={`${notice.kind}-${index}`}>
-                <span className="metric-heading"><SourcedText sources={notice.sources}><strong>{notice.title ?? titleCase(notice.kind)}</strong></SourcedText></span>
+                <span className="metric-heading"><strong>{notice.title ?? titleCase(notice.kind)}</strong></span>
                 <span className="metric-detail">{notice.text}</span>
               </li>
-            ))}</ul> : <p className="muted">No notices published.</p>}
-          </DetailSection>
+            ))}</ul>
+          </DetailSection> : null}
         </div>
-      </div>
+      </div>}
     </>
   );
 }
@@ -800,6 +847,22 @@ function App() {
   const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
   const [columnDropTarget, setColumnDropTarget] = useState<ColumnDropTarget | null>(null);
   const [selected, setSelected] = useState<CatalogRow | null>(null);
+
+  const openModel = (model: CatalogRow) => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("model") !== model.id) {
+      url.searchParams.set("model", model.id);
+      window.history.pushState(null, "", url);
+    }
+    setSelected(model);
+  };
+
+  const closeModel = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("model");
+    window.history.replaceState(null, "", url);
+    setSelected(null);
+  };
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -833,6 +896,16 @@ function App() {
       searchText: searchText(id, model),
     })),
   [catalog]);
+
+  useEffect(() => {
+    const syncSelection = () => {
+      const modelId = new URL(window.location.href).searchParams.get("model");
+      setSelected(modelId ? models.find(model => model.id === modelId) ?? null : null);
+    };
+    syncSelection();
+    window.addEventListener("popstate", syncSelection);
+    return () => window.removeEventListener("popstate", syncSelection);
+  }, [models]);
 
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const hasSearch = Boolean(normalizedSearch);
@@ -928,7 +1001,7 @@ function App() {
       header: "Model",
       cell: ({ row }) => (
         <div className="model-cell">
-          <button className="model-button" type="button" onClick={() => setSelected(row.original)}>
+          <button className="model-button" type="button" onClick={() => openModel(row.original)}>
             <span>{row.original.name}</span>
             <code>{row.original.id}</code>
           </button>
@@ -1091,49 +1164,6 @@ function App() {
     window.addEventListener("pointercancel", cancel);
   };
 
-  const autoSizeColumn = (column: Column<CatalogRow, unknown>) => {
-    const selector = `[data-column-id="${CSS.escape(column.id)}"]`;
-    const elements = Array.from(document.querySelectorAll<HTMLElement>(selector));
-    const minSize = column.columnDef.minSize ?? 80;
-    const maxSize = column.columnDef.maxSize ?? 560;
-    let width = minSize;
-
-    for (const element of elements) {
-      const computed = window.getComputedStyle(element);
-      const measurement = document.createElement("div");
-      measurement.className = element.className;
-      measurement.innerHTML = element.innerHTML;
-      measurement.querySelectorAll(".column-resizer").forEach(node => node.remove());
-      Object.assign(measurement.style, {
-        display: "inline-block",
-        font: computed.font,
-        height: "auto",
-        left: "-10000px",
-        maxWidth: "none",
-        minWidth: "0",
-        position: "fixed",
-        top: "0",
-        visibility: "hidden",
-        whiteSpace: "nowrap",
-        width: "max-content",
-      });
-      document.body.append(measurement);
-      width = Math.max(
-        width,
-        measurement.getBoundingClientRect().width
-          + Number.parseFloat(computed.paddingLeft)
-          + Number.parseFloat(computed.paddingRight)
-          + 2,
-      );
-      measurement.remove();
-    }
-
-    table.setColumnSizing(current => ({
-      ...current,
-      [column.id]: Math.min(maxSize, Math.ceil(width)),
-    }));
-  };
-
   const reset = () => {
     setSearch("");
     setColumnFilters([]);
@@ -1159,8 +1189,10 @@ function App() {
             <span className="brand-divider" aria-hidden="true" />
             <div><h1>Model Catalog</h1><p>Databricks serving models</p></div>
           </div>
-          <nav className="top-actions" aria-label="Catalog downloads">
+          <nav className="top-actions" aria-label="Catalog actions">
             <Button asChild variant="outline" size="sm"><a href="catalog.json" download><Download /> Catalog JSON</a></Button>
+            <span className="schema-version">v{catalog?.schema_version ?? "—"}</span>
+            <Button asChild variant="ghost" size="icon"><a href="https://github.com/reggie-db/dbx-model-catalog" aria-label="Open the GitHub repository" title="GitHub repository"><Github /></a></Button>
           </nav>
         </header>
 
@@ -1271,13 +1303,13 @@ function App() {
                               <button
                                 type="button"
                                 className={`column-resizer${header.column.getIsResizing() ? " column-resizer-active" : ""}`}
-                                aria-label={`Resize ${label}; double-click to fit content`}
-                                title="Drag to resize · Double-click to fit content"
+                                aria-label={`Resize ${label}; double-click to reset width`}
+                                title="Drag to resize · Double-click to reset width"
                                 onClick={event => event.stopPropagation()}
                                 onDoubleClick={event => {
                                   event.preventDefault();
                                   event.stopPropagation();
-                                  autoSizeColumn(header.column);
+                                  header.column.resetSize();
                                 }}
                                 onMouseDown={header.getResizeHandler()}
                                 onTouchStart={header.getResizeHandler()}
@@ -1306,12 +1338,7 @@ function App() {
           </section>
         </main>
 
-        <footer>
-          <span>Schema v{catalog?.schema_version ?? "—"} · Python-normalized published dataset</span>
-          <a href="https://github.com/reggie-db/dbx-model-catalog">Source repository <ExternalLink /></a>
-        </footer>
-
-        <Dialog open={Boolean(selected)} onOpenChange={open => { if (!open) setSelected(null); }}>
+        <Dialog open={Boolean(selected)} onOpenChange={open => { if (!open) closeModel(); }}>
           <DialogContent className="model-dialog">{selected && <ModelDetails model={selected} />}</DialogContent>
         </Dialog>
       </div>
