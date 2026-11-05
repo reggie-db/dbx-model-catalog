@@ -1,71 +1,59 @@
-import { execFile } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
+import { fileURLToPath } from "node:url";
+import type { CatalogClient } from "./types.js";
 
-const workspaceRoot = fileURLToPath(new URL('../../../..', import.meta.url));
-const serverRoot = fileURLToPath(
-  new URL('../../../../packages/py/server', import.meta.url),
-);
-const execFileAsync = promisify(execFile);
+const packageRootUrl = new URL("..", import.meta.url);
+const packageRoot = fileURLToPath(packageRootUrl);
+const serverRoot = fileURLToPath(new URL("dist/python", packageRootUrl));
 
 export interface ConnectModelCatalogOptions {
   python?: string;
   url?: string;
 }
 
+export interface ModelCatalogSession extends AsyncDisposable {
+  readonly client: CatalogClient;
+  readonly mode: "ipc" | "remote";
+  readonly root: string;
+  readonly pid: number | undefined;
+  close(): Promise<void>;
+}
+
 export async function connectModelCatalog(
   input?: string | ConnectModelCatalogOptions,
-) {
-  const [{ createCatalogClient }, { startWorker }] = await Promise.all([
-    import('./browser.js'),
-    import('pynect'),
+): Promise<ModelCatalogSession> {
+  const [{ createCatalogClientFromOptions }, { startWorker }] = await Promise.all([
+    import("./client.js"),
+    import("pynect"),
   ]);
-  const options = typeof input === 'string' ? { url: input } : input ?? {};
+  const options = typeof input === "string" ? { url: input } : (input ?? {});
   const remoteUrl = options.url?.trim() || undefined;
   const worker = remoteUrl
     ? undefined
     : await startWorker({
-        python: options.python ?? await resolvePythonExecutable(),
+        python: options.python,
         root: serverRoot,
       });
-  const client = createCatalogClient(
+  const client = createCatalogClientFromOptions(
     remoteUrl ? { baseUrl: remoteUrl } : worker!.clientOptions,
   );
+  const close = async (): Promise<void> => {
+    client.close();
+    await worker?.close();
+  };
 
   return {
     client,
-    mode: remoteUrl ? 'remote' as const : 'ipc' as const,
-    root: workspaceRoot,
+    mode: remoteUrl ? ("remote" as const) : ("ipc" as const),
+    root: packageRoot,
     get pid(): number | undefined {
       return worker?.pid;
     },
-    async close(): Promise<void> {
-      client.close();
-      await worker?.close();
-    },
+    close,
     async [Symbol.asyncDispose](): Promise<void> {
-      await this.close();
+      await close();
     },
   };
 }
 
-async function resolvePythonExecutable(): Promise<string> {
-  const { stdout } = await execFileAsync(
-    'uv',
-    [
-      'run',
-      '--project',
-      serverRoot,
-      'python',
-      '-c',
-      'import sys; print(sys.executable)',
-    ],
-    { cwd: workspaceRoot },
-  );
-  const python = stdout.trim();
-  if (!python) throw new Error('uv did not resolve a Python executable');
-  return python;
-}
-
-export { createCatalogClient } from './browser.js';
-export type * from './browser.js';
+export type * from "./browser.js";
+export { createCatalogClient } from "./browser.js";

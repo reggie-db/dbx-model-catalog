@@ -3,4 +3,4 @@
 
 export * from './schemas.js';
 export * from './channels.js';
-export { createPynectClient } from 'pynect';
+export { createPynectClient, type PynectClientOptions } from 'pynect';

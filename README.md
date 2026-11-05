@@ -125,7 +125,9 @@ remote = ModelCatalogClient.from_url("https://example.com/catalog.json")
 
 The workspace package is `@dbx-tools/dbx-model-catalog`. Without a URL it
 starts the Python Pynect worker and connects over local IPC. With a WebSocket
-URL it connects to an existing catalog server.
+URL it connects to an existing catalog server. The npm artifact carries the
+Python service source, and Pynect asks uv to provision its isolated environment
+on the first local connection.
 
 ```ts
 import { connectModelCatalog } from "@dbx-tools/dbx-model-catalog";

@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "@dbx-tools/dbx-model-catalog": "workspace:*",
-    "fuse.js": "^7.4.2"
+    "fuse.js": "catalog:"
   }
 }
