@@ -1173,13 +1173,6 @@ function App() {
     setColumnVisibility(defaultColumnVisibility);
   };
 
-  const summary = {
-    active: models.filter(model => model.status === "active").length,
-    multiCloud: models.filter(model => activeClouds(model).length === 3).length,
-    open: models.filter(model => model.open_weights === true).length,
-    ranked: models.filter(model => model.rankings.length || model.benchmarks.length).length,
-  };
-
   return (
     <BrandProvider applyToDocument>
       <div className="app-shell">
@@ -1197,16 +1190,6 @@ function App() {
         </header>
 
         <main>
-          <section className="summary-grid" aria-label="Catalog summary" tabIndex={0}>
-            {[
-              ["Models", models.length],
-              ["Active", summary.active],
-              ["Open weights", summary.open],
-              ["Multi-cloud", summary.multiCloud],
-              ["Ranked / benchmarked", summary.ranked],
-            ].map(([label, value]) => <div className="summary-item" key={label}><strong>{value}</strong><span>{label}</span></div>)}
-          </section>
-
           <section className="catalog-search" aria-label="Catalog search">
             <div className="search-field">
               <Label htmlFor="catalog-search">Search</Label>
