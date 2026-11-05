@@ -68,7 +68,7 @@ jobs:
           npm --version
       - name: Publish client
         run: |
-          TARBALL="$(find release -maxdepth 1 -name '*.tgz' -print -quit)"
+          TARBALL="$(find "$PWD/release" -maxdepth 1 -name '*.tgz' -print -quit)"
           PACKAGE="$(node -p "require('./packages/js/client/package.json').name")"
           VERSION="$(node -p "require('./packages/js/client/package.json').version")"
           if npm view "$PACKAGE@$VERSION" version >/dev/null 2>&1; then

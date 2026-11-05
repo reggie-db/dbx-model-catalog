@@ -61,7 +61,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
         run: |
           test -n "$NODE_AUTH_TOKEN"
-          TARBALL="$(find release -maxdepth 1 -name '*.tgz' -print -quit)"
+          TARBALL="$(find "$PWD/release" -maxdepth 1 -name '*.tgz' -print -quit)"
           PACKAGE="$(node -p "require('./packages/js/client/package.json').name")"
           VERSION="$(node -p "require('./packages/js/client/package.json').version")"
           if npm view "$PACKAGE@$VERSION" version >/dev/null 2>&1; then
