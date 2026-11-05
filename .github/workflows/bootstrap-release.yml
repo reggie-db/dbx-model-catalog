@@ -1,0 +1,71 @@
+name: Bootstrap npm release
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: bootstrap-npm-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          download-from-astral-mirror: true
+          enable-cache: true
+          python-version: "3.12"
+          version: latest-known
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+      - name: Install dependencies
+        run: bun install
+      - name: Run workspace checks
+        run: bun run check
+      - name: Pack client
+        run: |
+          mkdir -p release
+          cd packages/js/client
+          bun pm pack --destination ../../../release
+      - name: Validate package
+        run: |
+          TARBALL="$(find release -maxdepth 1 -name '*.tgz' -print -quit)"
+          test -n "$TARBALL"
+          bunx publint@0.3.25 --strict "$TARBALL"
+          bunx @arethetypeswrong/cli@0.18.5 --profile esm-only "$TARBALL"
+      - name: Ensure npm is current
+        run: |
+          npm install --global npm@latest
+          npm --version
+      - name: Publish initial client version
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: |
+          test -n "$NODE_AUTH_TOKEN"
+          TARBALL="$(find release -maxdepth 1 -name '*.tgz' -print -quit)"
+          PACKAGE="$(node -p "require('./packages/js/client/package.json').name")"
+          VERSION="$(node -p "require('./packages/js/client/package.json').version")"
+          if npm view "$PACKAGE@$VERSION" version >/dev/null 2>&1; then
+            echo "$PACKAGE@$VERSION is already published."
+          else
+            npm publish "$TARBALL" --access public
+          fi
