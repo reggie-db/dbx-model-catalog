@@ -517,8 +517,12 @@ def test_builds_catalog_from_python_sources() -> None:
         "sources": [
             {
                 "label": "LM Arena",
+                "url": "https://arena.ai/leaderboard",
+            },
+            {
+                "label": "LM Arena dataset",
                 "url": "https://huggingface.co/datasets/x/blob/main/agent/latest-00000-of-00001.parquet?sql_row=0",
-            }
+            },
         ],
         "metric": "score",
         "score": 0.42,

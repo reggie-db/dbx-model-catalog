@@ -14,6 +14,9 @@ import {
   DropdownMenuTrigger,
   Input,
   Label,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -42,6 +45,8 @@ import {
   type Column,
   type ColumnDef,
   type ColumnFiltersState,
+  type ColumnOrderState,
+  type ColumnSizingState,
   type FilterFn,
   type SortingFn,
   type SortingState,
@@ -57,11 +62,14 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
+  ChevronUp,
   ChevronsUpDown,
   Columns3,
   Download,
   ExternalLink,
   Filter,
+  GripVertical,
   RotateCcw,
   Search,
 } from "lucide-react";
@@ -149,6 +157,56 @@ const defaultColumnVisibility: VisibilityState = {
   updated: false,
   useCases: false,
 };
+
+interface TablePreferences {
+  columnOrder: ColumnOrderState;
+  columnSizing: ColumnSizingState;
+  columnVisibility: VisibilityState;
+}
+
+const tablePreferencesKey = "dbx-model-catalog.table-preferences.v1";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function loadTablePreferences(): TablePreferences {
+  const empty: TablePreferences = {
+    columnOrder: [],
+    columnSizing: {},
+    columnVisibility: {},
+  };
+  if (typeof window === "undefined") return empty;
+
+  try {
+    const raw = window.localStorage.getItem(tablePreferencesKey);
+    if (!raw) return empty;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) return empty;
+
+    const rawOrder = parsed.columnOrder;
+    const rawSizing = parsed.columnSizing;
+    const rawVisibility = parsed.columnVisibility;
+    return {
+      columnOrder: Array.isArray(rawOrder)
+        ? rawOrder.filter((value): value is string => typeof value === "string")
+        : [],
+      columnSizing: isRecord(rawSizing)
+        ? Object.fromEntries(Object.entries(rawSizing).filter(([, value]) => typeof value === "number" && Number.isFinite(value) && value > 0)) as ColumnSizingState
+        : {},
+      columnVisibility: isRecord(rawVisibility)
+        ? Object.fromEntries(Object.entries(rawVisibility).filter(([, value]) => typeof value === "boolean")) as VisibilityState
+        : {},
+    };
+  } catch {
+    return empty;
+  }
+}
+
+function mergeColumnOrder(saved: ColumnOrderState, available: ColumnOrderState) {
+  const known = saved.filter(id => available.includes(id));
+  return [...known, ...available.filter(id => !known.includes(id))];
+}
 
 const textFilter: FilterFn<CatalogRow> = (row, columnId, value) =>
   String(row.getValue(columnId) ?? "").toLocaleLowerCase().includes(String(value).trim().toLocaleLowerCase());
@@ -370,6 +428,16 @@ function SourcedText({ children, sources }: { children: ReactNode; sources: Sour
     );
   }
   return <>{children}<SourceLinks sources={sources} /></>;
+}
+
+function TableSourceLink({ children, sources }: { children: ReactNode; sources: SourceLink[] }) {
+  const source = sources[0];
+  if (!source) return <>{children}</>;
+  return (
+    <a className="table-source-link" href={source.url} target="_blank" rel="noreferrer" title={`Open ${source.label}`}>
+      {children}
+    </a>
+  );
 }
 
 function SelectFilter({
@@ -669,6 +737,7 @@ function ModelDetails({ model }: { model: CatalogRow }) {
 
 function App() {
   const catalogClient = useRef<CatalogClient | null>(null);
+  const [initialTablePreferences] = useState(loadTablePreferences);
   const [catalog, setCatalog] = useState<CatalogPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -681,7 +750,7 @@ function App() {
   const [weights, setWeights] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "model", desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(defaultColumnVisibility);
+  const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
   const [selected, setSelected] = useState<CatalogRow | null>(null);
 
   useEffect(() => {
@@ -817,6 +886,9 @@ function App() {
       id: "model",
       accessorFn: row => row.name,
       enableHiding: false,
+      minSize: 220,
+      size: 280,
+      maxSize: 560,
       filterFn: (row, _columnId, value) => `${row.original.name} ${row.original.id}`.toLocaleLowerCase().includes(String(value).trim().toLocaleLowerCase()),
       header: "Model",
       cell: ({ row }) => (
@@ -825,7 +897,6 @@ function App() {
             <span>{row.original.name}</span>
             <code>{row.original.id}</code>
           </button>
-          <SourceLinks sources={fieldSources(row.original, "name")} />
         </div>
       ),
     },
@@ -844,9 +915,9 @@ function App() {
     { id: "outputModalities", accessorFn: row => row.modalities.output, header: "Output modalities", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.modalities.output} /> },
     { id: "tasks", accessorFn: row => row.tasks, header: "Tasks", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.tasks} /> },
     { id: "useCases", accessorFn: row => row.use_cases, header: "Use cases", filterFn: enumFilter, cell: ({ row }) => <Chips values={row.original.use_cases} /> },
-    { id: "overallRank", accessorFn: row => bestOverallRanking(row)?.rank, header: "Best overall rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestOverallRanking(row.original); return ranking ? <span><strong>#{ranking.rank}</strong> <SourcedText sources={ranking.sources}>{titleCase(ranking.domain)}</SourcedText></span> : "—"; } },
-    { id: "categoryRank", accessorFn: row => bestCategoryRanking(row)?.rank, header: "Best category rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestCategoryRanking(row.original); return ranking ? <span><strong>#{ranking.rank}</strong> <SourcedText sources={ranking.sources}>{titleCase(ranking.domain)}</SourcedText> · {titleCase(ranking.category)}</span> : "—"; } },
-    { id: "benchmarks", accessorFn: row => topBenchmark(row)?.rank, header: "Top benchmark", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const benchmark = topBenchmark(row.original); return benchmark ? <span><strong>#{benchmark.rank}</strong> <SourcedText sources={benchmark.sources}>{benchmark.name}</SourcedText> · {benchmark.score}</span> : "—"; } },
+    { id: "overallRank", accessorFn: row => bestOverallRanking(row)?.rank, header: "Best overall rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestOverallRanking(row.original); return ranking ? <TableSourceLink sources={ranking.sources}><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)}</TableSourceLink> : "—"; } },
+    { id: "categoryRank", accessorFn: row => bestCategoryRanking(row)?.rank, header: "Best category rank", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const ranking = bestCategoryRanking(row.original); return ranking ? <TableSourceLink sources={ranking.sources}><strong>#{ranking.rank}</strong> {titleCase(ranking.domain)} · {titleCase(ranking.category)}</TableSourceLink> : "—"; } },
+    { id: "benchmarks", accessorFn: row => topBenchmark(row)?.rank, header: "Top benchmark", filterFn: maximumFilter, sortingFn: numericSorting, sortDescFirst: false, sortUndefined: "last", cell: ({ row }) => { const benchmark = topBenchmark(row.original); return benchmark ? <TableSourceLink sources={benchmark.sources}><strong>#{benchmark.rank}</strong> {benchmark.name} · {benchmark.score}</TableSourceLink> : "—"; } },
     { id: "openWeights", accessorFn: row => row.open_weights == null ? "Unknown" : row.open_weights ? "Yes" : "No", header: "Open weights", filterFn: enumFilter, cell: ({ row }) => row.original.open_weights == null ? "—" : row.original.open_weights ? "Yes" : "No" },
     { id: "released", accessorKey: "release_date", header: "Released", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
     { id: "updated", accessorKey: "last_updated", header: "Updated", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
@@ -854,19 +925,124 @@ function App() {
     { id: "aliases", accessorFn: row => row.aliases.join(", "), header: "Aliases", filterFn: textFilter, cell: ({ row }) => <Chips values={row.original.aliases} /> },
   ], []);
 
+  const defaultColumnOrder = useMemo(
+    () => columns.map(column => column.id).filter((id): id is string => Boolean(id)),
+    [columns],
+  );
+  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(() => mergeColumnOrder(initialTablePreferences.columnOrder, defaultColumnOrder));
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(initialTablePreferences.columnSizing);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => ({
+    ...defaultColumnVisibility,
+    ...initialTablePreferences.columnVisibility,
+  }));
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(tablePreferencesKey, JSON.stringify({
+        columnOrder,
+        columnSizing,
+        columnVisibility,
+      } satisfies TablePreferences));
+    } catch {
+      // Browsing remains functional when storage is unavailable.
+    }
+  }, [columnOrder, columnSizing, columnVisibility]);
+
   const table = useReactTable({
     data: filtered,
     columns,
-    state: { sorting, columnFilters, columnVisibility },
+    state: { sorting, columnFilters, columnOrder, columnSizing, columnVisibility },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onColumnOrderChange: setColumnOrder,
+    onColumnSizingChange: setColumnSizing,
     onColumnVisibilityChange: setColumnVisibility,
+    columnResizeMode: "onChange",
+    defaultColumn: {
+      minSize: 80,
+      size: 150,
+      maxSize: 560,
+    },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
   });
+
+  const configurableColumns = columnOrder
+    .map(id => table.getColumn(id))
+    .filter((column): column is Column<CatalogRow, unknown> => Boolean(column && column.id !== "relevance"));
+
+  const reorderColumn = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    setColumnOrder(current => {
+      const next = mergeColumnOrder(current, defaultColumnOrder);
+      const sourceIndex = next.indexOf(sourceId);
+      const targetIndex = next.indexOf(targetId);
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+      const [source] = next.splice(sourceIndex, 1);
+      next.splice(next.indexOf(targetId), 0, source);
+      return next;
+    });
+  };
+
+  const moveColumn = (columnId: string, offset: -1 | 1) => {
+    const ids = configurableColumns.map(column => column.id);
+    const index = ids.indexOf(columnId);
+    const target = ids[index + offset];
+    if (!target) return;
+    setColumnOrder(current => {
+      const next = mergeColumnOrder(current, defaultColumnOrder);
+      const sourceIndex = next.indexOf(columnId);
+      const targetIndex = next.indexOf(target);
+      [next[sourceIndex], next[targetIndex]] = [next[targetIndex], next[sourceIndex]];
+      return next;
+    });
+  };
+
+  const autoSizeColumn = (column: Column<CatalogRow, unknown>) => {
+    const selector = `[data-column-id="${CSS.escape(column.id)}"]`;
+    const elements = Array.from(document.querySelectorAll<HTMLElement>(selector));
+    const minSize = column.columnDef.minSize ?? 80;
+    const maxSize = column.columnDef.maxSize ?? 560;
+    let width = minSize;
+
+    for (const element of elements) {
+      const computed = window.getComputedStyle(element);
+      const measurement = document.createElement("div");
+      measurement.className = element.className;
+      measurement.innerHTML = element.innerHTML;
+      measurement.querySelectorAll(".column-resizer").forEach(node => node.remove());
+      Object.assign(measurement.style, {
+        display: "inline-block",
+        font: computed.font,
+        height: "auto",
+        left: "-10000px",
+        maxWidth: "none",
+        minWidth: "0",
+        position: "fixed",
+        top: "0",
+        visibility: "hidden",
+        whiteSpace: "nowrap",
+        width: "max-content",
+      });
+      document.body.append(measurement);
+      width = Math.max(
+        width,
+        measurement.getBoundingClientRect().width
+          + Number.parseFloat(computed.paddingLeft)
+          + Number.parseFloat(computed.paddingRight)
+          + 2,
+      );
+      measurement.remove();
+    }
+
+    table.setColumnSizing(current => ({
+      ...current,
+      [column.id]: Math.min(maxSize, Math.ceil(width)),
+    }));
+  };
 
   const reset = () => {
     setSearch("");
@@ -877,6 +1053,9 @@ function App() {
     setWeights("all");
     setColumnFilters([]);
     setSorting([{ id: "model", desc: false }]);
+    setColumnOrder(defaultColumnOrder);
+    setColumnSizing({});
+    setColumnVisibility(defaultColumnVisibility);
   };
 
   const summary = {
@@ -901,7 +1080,7 @@ function App() {
         </header>
 
         <main>
-          <section className="summary-grid" aria-label="Catalog summary">
+          <section className="summary-grid" aria-label="Catalog summary" tabIndex={0}>
             {[
               ["Models", models.length],
               ["Active", summary.active],
@@ -930,31 +1109,116 @@ function App() {
                 <span>{searching ? "Ranking matches…" : catalog ? `Updated ${formatDateTime(catalog.updated_at)}` : error ?? "Loading catalog…"}</span>
               </div>
               <div className="table-actions">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild><Button variant="outline" size="sm"><Columns3 /> Columns</Button></DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="column-menu">
-                    <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {table.getAllLeafColumns().filter(column => column.getCanHide()).map(column => (
-                      <DropdownMenuCheckboxItem key={column.id} checked={column.getIsVisible()} onSelect={event => event.preventDefault()} onCheckedChange={value => column.toggleVisibility(Boolean(value))}>
-                        {columnLabels[column.id] ?? column.id}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Popover>
+                  <PopoverTrigger asChild><Button variant="outline" size="sm"><Columns3 /> Columns</Button></PopoverTrigger>
+                  <PopoverContent align="end" className="column-menu">
+                    <div className="column-menu-heading">Columns</div>
+                    <div className="column-menu-separator" />
+                    <div className="column-menu-list">
+                      {configurableColumns.map((column, index) => (
+                        <div
+                          className="column-menu-row"
+                          data-dragging={draggedColumnId === column.id || undefined}
+                          key={column.id}
+                          onDragOver={event => {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                          }}
+                          onDrop={event => {
+                            event.preventDefault();
+                            const sourceId = draggedColumnId ?? event.dataTransfer.getData("text/plain");
+                            if (sourceId) reorderColumn(sourceId, column.id);
+                            setDraggedColumnId(null);
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="column-drag-handle"
+                            draggable
+                            aria-label={`Drag ${columnLabels[column.id] ?? column.id} to reorder`}
+                            title="Drag to reorder"
+                            onDragStart={event => {
+                              setDraggedColumnId(column.id);
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("text/plain", column.id);
+                            }}
+                            onDragEnd={() => setDraggedColumnId(null)}
+                          >
+                            <GripVertical aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="column-toggle"
+                            role="checkbox"
+                            aria-checked={column.getIsVisible()}
+                            disabled={!column.getCanHide()}
+                            onPointerDown={event => event.stopPropagation()}
+                            onClick={event => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              column.toggleVisibility();
+                            }}
+                          >
+                            <span className="column-toggle-indicator" aria-hidden="true">
+                              {column.getIsVisible() ? "✓" : ""}
+                            </span>
+                            <span className="column-toggle-label">{columnLabels[column.id] ?? column.id}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="column-move-button"
+                            disabled={index === 0}
+                            aria-label={`Move ${columnLabels[column.id] ?? column.id} left`}
+                            title="Move left"
+                            onPointerDown={event => event.stopPropagation()}
+                            onClick={event => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              moveColumn(column.id, -1);
+                            }}
+                          >
+                            <ChevronUp aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="column-move-button"
+                            disabled={index === configurableColumns.length - 1}
+                            aria-label={`Move ${columnLabels[column.id] ?? column.id} right`}
+                            title="Move right"
+                            onPointerDown={event => event.stopPropagation()}
+                            onClick={event => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              moveColumn(column.id, 1);
+                            }}
+                          >
+                            <ChevronDown aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
                 <Button variant="ghost" size="sm" onClick={reset}><RotateCcw /> Reset</Button>
               </div>
             </div>
 
             <div className="table-scroll">
-              <Table>
+              <Table className="catalog-table" style={{ width: table.getTotalSize() }}>
                 <TableHeader>
                   {table.getHeaderGroups().map(group => (
                     <TableRow key={group.id}>
                       {group.headers.map(header => {
                         const sorted = header.column.getIsSorted();
+                        const label = columnLabels[header.column.id] ?? header.column.id;
                         return (
-                          <TableHead key={header.id} aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"}>
+                          <TableHead
+                            className="resizable-header"
+                            data-column-id={header.column.id}
+                            key={header.id}
+                            aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none"}
+                            style={{ width: header.getSize() }}
+                          >
                             <div className="table-header-control">
                               <button type="button" className="sort-button" onClick={header.column.getToggleSortingHandler()}>
                                 {flexRender(header.column.columnDef.header, header.getContext())}
@@ -962,10 +1226,26 @@ function App() {
                               </button>
                               <HeaderFilter
                                 column={header.column}
-                                label={columnLabels[header.column.id] ?? header.column.id}
+                                label={label}
                                 options={headerFilterOptions[header.column.id]}
                               />
                             </div>
+                            {header.column.getCanResize() ? (
+                              <button
+                                type="button"
+                                className={`column-resizer${header.column.getIsResizing() ? " column-resizer-active" : ""}`}
+                                aria-label={`Resize ${label}; double-click to fit content`}
+                                title="Drag to resize · Double-click to fit content"
+                                onClick={event => event.stopPropagation()}
+                                onDoubleClick={event => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  autoSizeColumn(header.column);
+                                }}
+                                onMouseDown={header.getResizeHandler()}
+                                onTouchStart={header.getResizeHandler()}
+                              />
+                            ) : null}
                           </TableHead>
                         );
                       })}
@@ -975,7 +1255,11 @@ function App() {
                 <TableBody>
                   {table.getRowModel().rows.map(row => (
                     <TableRow key={row.id}>
-                      {row.getVisibleCells().map(cell => <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>)}
+                      {row.getVisibleCells().map(cell => (
+                        <TableCell data-column-id={cell.column.id} key={cell.id} style={{ width: cell.column.getSize() }}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   ))}
                 </TableBody>

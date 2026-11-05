@@ -35,6 +35,7 @@ from .models import (
 )
 
 MODEL_CATALOG_SCHEMA_VERSION = 15
+LM_ARENA_LEADERBOARD_URL = "https://arena.ai/leaderboard"
 
 EVALUATION_SUFFIXES = {
     "auto",
@@ -871,7 +872,10 @@ def _lm_arena_ranking(
         "category": row.category or "overall",
         "rank": row.rank,
         "sources": _dedupe_sources(
-            [_source_link("LM Arena", row.source_url or "")]
+            [
+                _source_link("LM Arena", LM_ARENA_LEADERBOARD_URL),
+                _source_link("LM Arena dataset", row.source_url or ""),
+            ]
         ),
     }
     if row.leaderboard_publish_date:

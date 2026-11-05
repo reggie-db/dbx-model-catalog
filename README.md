@@ -19,6 +19,13 @@ clients without requiring release-tag discovery or GitHub API authentication.
 The repository stores one generated data artifact:
 `packages/js/web/catalog.json`.
 
+In the explorer, model names open the model details. Ranking and benchmark
+values link to their upstream leaderboards; LM Arena entries use the official
+Arena leaderboard and retain the exact Hugging Face dataset row as a secondary
+source. The Columns menu controls visibility and order. Drag a column divider
+to resize it or double-click the divider to fit its content. Column visibility,
+order, and widths are saved in local browser storage.
+
 The catalog has this top-level shape:
 
 ```json
