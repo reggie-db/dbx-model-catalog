@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@chanx-js/client": "2.3.2",
-    "pynect": "0.8.14"
+    "pynect": "0.8.16"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

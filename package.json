@@ -33,7 +33,7 @@
     "@types/react-dom": "^19.2.2",
     "bun-plugin-tailwind": "^0.1.2",
     "lucide-react": "^0.554.0",
-    "pynect": "0.8.14",
+    "pynect": "0.8.16",
     "react": "~19.2.4",
     "react-dom": "~19.2.4",
     "tailwindcss": "^4.3.2",
