@@ -181,11 +181,17 @@ that variable, the Python service loads the published catalog.
 Build and run the static explorer without bundling a catalog snapshot:
 
 ```sh
-docker build -t dbx-model-catalog-demo .
+NPM_DOCKER_REGISTRY="$(npm config get registry | sed -E 's#(localhost|127\.0\.0\.1)#host.docker.internal#')"
+docker build \
+  --add-host=host.docker.internal:host-gateway \
+  --build-arg NPM_CONFIG_REGISTRY="$NPM_DOCKER_REGISTRY" \
+  -t dbx-model-catalog-demo .
 docker run --rm -p 8080:8080 dbx-model-catalog-demo
 ```
 
 Open <http://localhost:8080>. The container serves only the compiled explorer.
+The build command reuses the configured npm registry, including its port, and
+maps a local Verdaccio host to Docker's `host.docker.internal` address.
 At runtime the browser fetches the schema-scoped catalog and search index from
 `raw.githubusercontent.com` on the repository's `main` branch, so GitHub
 remains the source of truth. The image does not contain `catalog.json`,

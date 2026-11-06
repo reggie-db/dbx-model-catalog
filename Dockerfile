@@ -1,5 +1,8 @@
 FROM oven/bun:1.4.4-alpine AS build
 
+ARG NPM_CONFIG_REGISTRY
+ENV NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY}
+
 WORKDIR /workspace
 
 COPY package.json tsconfig.json ./
