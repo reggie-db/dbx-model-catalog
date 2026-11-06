@@ -6,7 +6,6 @@ const packageRoot = fileURLToPath(packageRootUrl);
 const serverRoot = fileURLToPath(new URL("dist/python", packageRootUrl));
 
 export interface ConnectModelCatalogOptions {
-  python?: string;
   url?: string;
 }
 
@@ -30,7 +29,6 @@ export async function connectModelCatalog(
   const worker = remoteUrl
     ? undefined
     : await startWorker({
-        python: options.python === undefined ? undefined : { python: options.python },
         root: serverRoot,
       });
   const client = createCatalogClientFromOptions(

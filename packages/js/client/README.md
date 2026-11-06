@@ -14,11 +14,10 @@ await using remote = await connectModelCatalog("wss://catalog.example.com");
 const catalog = await remote.client.catalog();
 ```
 
-Pass `{ python: "/path/to/python" }` to select the Python executable used for
-the local worker. The npm artifact includes the Python service source; Pynect
-uses uv to provision its isolated environment on the first local connection.
-Generated catalog types are re-exported from this package. The package does not
-contain a separate JavaScript schema implementation.
+The npm artifact includes the Python service source. Pynect uses uv to
+provision its isolated environment on the first local connection. Generated
+catalog types are re-exported from this package. The package does not contain a
+separate JavaScript schema implementation.
 
 For direct public ingestion without the service client, fetch:
 <https://reggie-db.github.io/dbx-model-catalog/catalog.json>.

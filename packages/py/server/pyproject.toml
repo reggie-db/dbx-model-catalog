@@ -11,7 +11,7 @@ dependencies = [
   "chanx[fast_channels]>=2.13,<3",
   "dbx-model-catalog",
   "fastapi>=0.120,<1",
-  "pynect==0.8.17",
+  "pynect>=1.0.0,<2",
   "uvicorn[standard]>=0.40,<1",
 ]
 
