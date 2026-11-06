@@ -65,17 +65,23 @@ jobs:
         run: |
           npm install --global npm@latest
           npm --version
+      - name: Verify npm token
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          test -n "$NODE_AUTH_TOKEN"
+          npm whoami --registry https://registry.npmjs.org
       - name: Publish client
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || secrets.NPM_BOOTSTRAP_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           TARBALL="$(find "$PWD/release" -maxdepth 1 -name '*.tgz' -print -quit)"
           PACKAGE="$(node -p "require('./packages/js/client/package.json').name")"
           VERSION="$(node -p "require('./packages/js/client/package.json').version")"
+          test -n "$NODE_AUTH_TOKEN"
           if npm view "$PACKAGE@$VERSION" version >/dev/null 2>&1; then
             echo "$PACKAGE@$VERSION is already published."
           else
-            test -n "$NODE_AUTH_TOKEN"
             PUBLISH_LOG="$(mktemp)"
             set +e
             npm publish "$TARBALL" --access public 2>&1 | tee "$PUBLISH_LOG"
