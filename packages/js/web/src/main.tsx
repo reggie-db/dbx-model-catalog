@@ -1256,8 +1256,14 @@ function App() {
         <header className="topbar">
           <div className="brand-block">
             <BrandLogo className="brand-logo" />
-            <span className="brand-divider" aria-hidden="true" />
-            <h1>Model Catalog</h1>
+            <h1 className="brand-subtitle">Model Catalog</h1>
+          </div>
+          <div className="header-search" role="search">
+            <Label className="visually-hidden" htmlFor="catalog-search">Search catalog</Label>
+            <InputGroup className="search-control">
+              <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
+              <InputGroupInput id="catalog-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, ID, publisher, family, task…" />
+            </InputGroup>
           </div>
           <nav className="top-actions" aria-label="Catalog actions">
             <span className="schema-version">v{catalog?.schema_version ?? "—"}</span>
@@ -1267,16 +1273,6 @@ function App() {
         </header>
 
         <main>
-          <section className="catalog-search" aria-label="Catalog search">
-            <div className="search-field">
-              <Label htmlFor="catalog-search">Search</Label>
-              <InputGroup className="search-control">
-                <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
-                <InputGroupInput id="catalog-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, ID, publisher, family, task…" />
-              </InputGroup>
-            </div>
-          </section>
-
           <section className="catalog-card" aria-busy={(!catalog && !error) || searching} aria-live="polite">
             <div className="table-toolbar">
               <div>

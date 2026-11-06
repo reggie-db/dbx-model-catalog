@@ -72,6 +72,7 @@ packages/js/web/dist/
 .history/
 
 # ---- Temp / scratch ------------------------------------------------------
+.kanna/
 tmp/
 temp/
 *.tmp
