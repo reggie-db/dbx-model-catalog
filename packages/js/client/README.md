@@ -20,4 +20,4 @@ catalog types are re-exported from this package. The package does not contain a
 separate JavaScript schema implementation.
 
 For direct public ingestion without the service client, fetch:
-<https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/v0.1.3/packages/js/web/catalog.json>.
+<https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.json>.

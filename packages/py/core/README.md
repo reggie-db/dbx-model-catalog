@@ -15,7 +15,7 @@ ranked = catalog.search("claude reasoning", limit=5)
 ```
 
 `from_published()` downloads
-<https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/v0.1.3/packages/js/web/catalog.json>
+<https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.json>
 and caches the
 payload for one hour in the platform-native user cache directory. Pass
 `refresh=True` to replace the cached value or `cache_ttl` to change its
