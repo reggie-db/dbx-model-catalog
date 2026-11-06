@@ -30,7 +30,7 @@ export async function connectModelCatalog(
   const worker = remoteUrl
     ? undefined
     : await startWorker({
-        python: options.python,
+        python: options.python === undefined ? undefined : { python: options.python },
         root: serverRoot,
       });
   const client = createCatalogClientFromOptions(
