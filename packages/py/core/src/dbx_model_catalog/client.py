@@ -24,7 +24,10 @@ CatalogFetch: TypeAlias = Callable[[str], bytes]
 CatalogPayloadDecoder: TypeAlias = Callable[[bytes, CatalogPayloadEncoding], str]
 CatalogCacheDirectory: TypeAlias = str | Path
 
-PUBLISHED_CATALOG_BASE_URL = "https://reggie-db.github.io/dbx-model-catalog"
+PUBLISHED_CATALOG_BASE_URL = (
+    "https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/"
+    "v0.1.3/packages/js/web"
+)
 PUBLISHED_CATALOG_URL = f"{PUBLISHED_CATALOG_BASE_URL}/catalog.json"
 PUBLISHED_CATALOG_CACHE_TTL = 3600.0
 

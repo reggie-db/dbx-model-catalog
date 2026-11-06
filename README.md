@@ -12,14 +12,15 @@ JavaScript packages use the `@dbx-tools` scope.
 ## Published catalog
 
 - Explorer: <https://reggie-db.github.io/dbx-model-catalog/>
-- Stable JSON: <https://reggie-db.github.io/dbx-model-catalog/catalog.json>
-- SQLite database: <https://reggie-db.github.io/dbx-model-catalog/catalog.sqlite>
+- Stable JSON: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/v0.1.3/packages/js/web/catalog.json>
+- SQLite database: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/v0.1.3/packages/js/web/catalog.sqlite>
 
-GitHub Pages is the public distribution endpoint. It provides a stable URL for
-clients without requiring release-tag discovery or GitHub API authentication.
-The repository stores the generated catalog, its Python-owned derived search
-index, and a queryable SQLite database in `packages/js/web/catalog.json`,
-`packages/js/web/search-index.json`, and `packages/js/web/catalog.sqlite`.
+GitHub Pages hosts the explorer. Release-tagged raw GitHub artifacts provide
+immutable JSON and SQLite endpoints for clients without requiring GitHub API
+authentication. The repository stores the generated catalog, its Python-owned
+derived search index, and a queryable SQLite database in
+`packages/js/web/catalog.json`, `packages/js/web/search-index.json`, and
+`packages/js/web/catalog.sqlite`.
 
 In the explorer, model names open the model details. Ranking and benchmark
 values link to their upstream leaderboards; LM Arena entries use the official
@@ -60,7 +61,7 @@ Schema consumers should check `schema_version`. The complete JSON Schema is at
 Download the current catalog:
 
 ```sh
-curl -fsSL https://reggie-db.github.io/dbx-model-catalog/catalog.json \
+curl -fsSL https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/v0.1.3/packages/js/web/catalog.json \
   -o catalog.json
 ```
 
@@ -68,7 +69,7 @@ Use it directly from JavaScript:
 
 ```ts
 const response = await fetch(
-  "https://reggie-db.github.io/dbx-model-catalog/catalog.json",
+  "https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/v0.1.3/packages/js/web/catalog.json",
 );
 if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
 
@@ -80,7 +81,7 @@ const activeModels = Object.entries(catalog.models)
 Download and query the maintained SQLite database:
 
 ```sh
-curl -fsSL https://reggie-db.github.io/dbx-model-catalog/catalog.sqlite \
+curl -fsSL https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/v0.1.3/packages/js/web/catalog.sqlite \
   -o catalog.sqlite
 sqlite3 catalog.sqlite \
   "SELECT id, name FROM models WHERE status = 'active' ORDER BY name"
