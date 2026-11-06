@@ -12,15 +12,17 @@ JavaScript packages use the `@dbx-tools` scope.
 ## Published catalog
 
 - Explorer: <https://reggie-db.github.io/dbx-model-catalog/>
-- Stable JSON: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.json>
-- SQLite database: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.sqlite>
+- Schema registry: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/index.json>
+- Schema v15 JSON: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.json>
+- Schema v15 SQLite: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.sqlite>
+- Latest JSON alias: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.json>
 
 GitHub Pages hosts the explorer. Raw GitHub artifacts from `main` provide the
-current JSON and SQLite endpoints for clients without requiring GitHub API
-authentication. The repository stores the generated catalog, its Python-owned
-derived search index, and a queryable SQLite database in
-`packages/js/web/catalog.json`, `packages/js/web/search-index.json`, and
-`packages/js/web/catalog.sqlite`.
+JSON and SQLite endpoints for clients without requiring GitHub API
+authentication. Each contract is published under `catalog/v<schema_version>/`
+so clients can stay on a compatible schema while newer schemas coexist. The
+root `catalog.json`, `search-index.json`, and `catalog.sqlite` files remain
+backward-compatible aliases for the latest publication.
 
 In the explorer, model names open the model details. Ranking and benchmark
 values link to their upstream leaderboards; LM Arena entries use the official
@@ -53,6 +55,7 @@ The catalog has this top-level shape:
 }
 ```
 
+`updated_at` is the latest source-fetch timestamp represented by that catalog.
 Schema consumers should check `schema_version`. The complete JSON Schema is at
 `packages/py/core/src/dbx_model_catalog/schema/model-catalog.schema.json`.
 
@@ -61,7 +64,7 @@ Schema consumers should check `schema_version`. The complete JSON Schema is at
 Download the current catalog:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.json \
+curl -fsSL https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.json \
   -o catalog.json
 ```
 
@@ -69,7 +72,7 @@ Use it directly from JavaScript:
 
 ```ts
 const response = await fetch(
-  "https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.json",
+  "https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.json",
 );
 if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
 
@@ -81,7 +84,7 @@ const activeModels = Object.entries(catalog.models)
 Download and query the maintained SQLite database:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.sqlite \
+curl -fsSL https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.sqlite \
   -o catalog.sqlite
 sqlite3 catalog.sqlite \
   "SELECT id, name FROM models WHERE status = 'active' ORDER BY name"
@@ -166,11 +169,27 @@ bun run serve
 
 The server listens on `http://127.0.0.1:8787`. It exposes the catalog over
 Pynect WebSocket channels and provides `/health`, `/asyncapi`, and
-`/asyncapi.json`. The local browser uses the WebSocket service. The Pages build
-loads its colocated `catalog.json` directly.
+`/asyncapi.json`. The local browser uses the WebSocket service. Static builds
+for GitHub Pages and Docker fetch the schema-scoped artifacts from the
+repository's `main` branch.
 
 Set `DBX_MODEL_CATALOG_PATH` to use an explicit local JSON artifact. Without
 that variable, the Python service loads the published catalog.
+
+### Static Docker demo
+
+Build and run the static explorer without bundling a catalog snapshot:
+
+```sh
+docker build -t dbx-model-catalog-demo .
+docker run --rm -p 8080:8080 dbx-model-catalog-demo
+```
+
+Open <http://localhost:8080>. The container serves only the compiled explorer.
+At runtime the browser fetches the schema-scoped catalog and search index from
+`raw.githubusercontent.com` on the repository's `main` branch, so GitHub
+remains the source of truth. The image does not contain `catalog.json`,
+`search-index.json`, `catalog.sqlite`, or the version registry.
 
 ## Catalog publication
 
@@ -180,9 +199,10 @@ started manually. Each run:
 1. Fetches every configured source with `--refresh`.
 2. Normalizes and validates the complete catalog.
 3. Builds and validates the JSON catalog, search index, and SQLite database.
-4. Commits `packages/js/web/catalog.json`, `packages/js/web/search-index.json`,
-   and `packages/js/web/catalog.sqlite` when data changed.
-5. Triggers the Pages deployment after the publication workflow succeeds.
+4. Publishes the latest aliases plus the current `catalog/v<schema_version>/`
+   lane and updates `catalog/index.json` without deleting older schema lanes.
+5. Commits the generated catalog artifacts when data changed.
+6. Triggers the Pages deployment after the publication workflow succeeds.
 
 Source responses and intermediate files remain ephemeral on the GitHub runner.
 `HF_TOKEN` is an optional Actions secret used for authenticated Hugging Face

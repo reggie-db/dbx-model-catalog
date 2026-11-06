@@ -89,6 +89,8 @@ import {
 import { type ComponentType, type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  PUBLISHED_CATALOG_SEARCH_INDEX_URL,
+  PUBLISHED_CATALOG_URL,
   createCatalogClient,
   type CatalogClient,
   type CatalogModel,
@@ -104,6 +106,8 @@ import {
   type EvaluationVariant,
 } from "./evaluation.js";
 import { searchStaticCatalog } from "./search.js";
+
+declare const __DBX_MODEL_CATALOG_WEB_SOURCE__: "auto" | "github";
 
 type Cloud = "aws" | "azure" | "gcp";
 type Ranking = CatalogModel["rankings"][number];
@@ -401,13 +405,13 @@ function catalogWebSocketUrl() {
 }
 
 async function loadStaticCatalog(): Promise<CatalogPayload> {
-  const response = await fetch("catalog.json", { cache: "no-cache" });
+  const response = await fetch(PUBLISHED_CATALOG_URL, { cache: "no-cache" });
   if (response.ok) return await response.json() as CatalogPayload;
   throw new Error(`Catalog request failed with ${response.status}`);
 }
 
 async function loadStaticSearchIndex(): Promise<CatalogSearchIndexPayload> {
-  const response = await fetch("search-index.json", { cache: "no-cache" });
+  const response = await fetch(PUBLISHED_CATALOG_SEARCH_INDEX_URL, { cache: "no-cache" });
   if (response.ok) return await response.json() as CatalogSearchIndexPayload;
   throw new Error(`Search index request failed with ${response.status}`);
 }
@@ -937,7 +941,8 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    const staticCatalog = window.location.hostname.endsWith(".github.io");
+    const staticCatalog = __DBX_MODEL_CATALOG_WEB_SOURCE__ === "github"
+      || window.location.hostname.endsWith(".github.io");
     const client = staticCatalog ? null : createCatalogClient({ baseUrl: catalogWebSocketUrl() });
     catalogClient.current = client;
     const request = client
@@ -1257,7 +1262,7 @@ function App() {
           <nav className="top-actions" aria-label="Catalog actions">
             <span className="schema-version">v{catalog?.schema_version ?? "—"}</span>
             <Button asChild variant="ghost" size="icon"><a href="https://github.com/reggie-db/dbx-model-catalog" aria-label="Open the GitHub repository" title="GitHub repository"><Github /></a></Button>
-            <Button asChild variant="ghost" size="icon"><a href="catalog.json" download aria-label="Download catalog JSON" title="Download catalog JSON"><Download /></a></Button>
+            <Button asChild variant="ghost" size="icon"><a href={PUBLISHED_CATALOG_URL} aria-label="Download catalog JSON" title="Download catalog JSON"><Download /></a></Button>
           </nav>
         </header>
 

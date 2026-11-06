@@ -15,11 +15,13 @@ ranked = catalog.search("claude reasoning", limit=5)
 ```
 
 `from_published()` downloads
-<https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.json>
+<https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.json>
 and caches the
 payload for one hour in the platform-native user cache directory. Pass
 `refresh=True` to replace the cached value or `cache_ttl` to change its
-lifetime.
+lifetime. The package selects the schema lane it was built against; newer
+catalog schema versions can coexist without changing this URL. Every catalog
+includes its source-derived last update timestamp in `updated_at`.
 
 Load explicit data when the published endpoint is not appropriate:
 

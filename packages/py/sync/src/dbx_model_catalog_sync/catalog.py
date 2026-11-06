@@ -9,7 +9,11 @@ from urllib.parse import quote
 
 from diskcache import Cache
 
-from dbx_model_catalog.models import EffortEnum, ModelCatalog
+from dbx_model_catalog.models import (
+    MODEL_CATALOG_SCHEMA_VERSION,
+    EffortEnum,
+    ModelCatalog,
+)
 from .clients import (
     DatabricksSyncClient,
     LMArenaSyncClient,
@@ -34,7 +38,6 @@ from .models import (
     SyncResult,
 )
 
-MODEL_CATALOG_SCHEMA_VERSION = 15
 LM_ARENA_LEADERBOARD_URL = "https://arena.ai/leaderboard"
 REASONING_EFFORTS = {effort.value for effort in EffortEnum}
 

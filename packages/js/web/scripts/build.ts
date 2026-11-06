@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rm } from "node:fs/promises";
+import { copyFile, cp, mkdir, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import type { BunPlugin } from "bun";
@@ -6,6 +6,9 @@ import tailwind from "bun-plugin-tailwind";
 
 const root = resolve(import.meta.dir, "..");
 const output = resolve(root, "dist");
+const catalogSource = process.env.DBX_MODEL_CATALOG_WEB_SOURCE === "github"
+  ? "github"
+  : "auto";
 const require = createRequire(import.meta.url);
 const reactEntries = new Map(
   ["react", "react/jsx-runtime", "react/jsx-dev-runtime", "react-dom", "react-dom/client"].map(
@@ -26,6 +29,9 @@ await rm(output, { force: true, recursive: true });
 
 const result = await Bun.build({
   entrypoints: [resolve(root, "index.html")],
+  define: {
+    __DBX_MODEL_CATALOG_WEB_SOURCE__: JSON.stringify(catalogSource),
+  },
   minify: true,
   outdir: output,
   plugins: [tailwind, dedupeReact],
@@ -40,7 +46,10 @@ if (!result.success) {
 
 await mkdir(output, { recursive: true });
 await Promise.all(
-  [".nojekyll", "catalog.json", "catalog.sqlite", "favicon.svg", "search-index.json"].map(file =>
-    copyFile(resolve(root, file), resolve(output, file)),
-  ),
+  [
+    ...[".nojekyll", "catalog.json", "catalog.sqlite", "favicon.svg", "search-index.json"].map(
+      file => copyFile(resolve(root, file), resolve(output, file)),
+    ),
+    cp(resolve(root, "catalog"), resolve(output, "catalog"), { recursive: true }),
+  ],
 );

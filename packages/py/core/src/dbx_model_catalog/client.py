@@ -11,7 +11,7 @@ from diskcache import Cache
 from platformdirs import user_cache_path
 
 from .filters import CatalogFilters
-from .models import CatalogModelRecord, ModelCatalog
+from .models import MODEL_CATALOG_SCHEMA_VERSION, CatalogModelRecord, ModelCatalog
 from .query import CatalogQuery, CatalogQueryOptions, query_catalog_records
 from .search import (
     CatalogSearchIndex,
@@ -28,7 +28,12 @@ PUBLISHED_CATALOG_BASE_URL = (
     "https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/"
     "main/packages/js/web"
 )
-PUBLISHED_CATALOG_URL = f"{PUBLISHED_CATALOG_BASE_URL}/catalog.json"
+PUBLISHED_CATALOG_INDEX_URL = f"{PUBLISHED_CATALOG_BASE_URL}/catalog/index.json"
+PUBLISHED_CATALOG_SCHEMA_VERSION = MODEL_CATALOG_SCHEMA_VERSION
+PUBLISHED_CATALOG_SCHEMA_URL = (
+    f"{PUBLISHED_CATALOG_BASE_URL}/catalog/v{PUBLISHED_CATALOG_SCHEMA_VERSION}"
+)
+PUBLISHED_CATALOG_URL = f"{PUBLISHED_CATALOG_SCHEMA_URL}/catalog.json"
 PUBLISHED_CATALOG_CACHE_TTL = 3600.0
 
 

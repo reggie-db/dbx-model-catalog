@@ -39,22 +39,35 @@ jobs:
       - name: Validate catalog database
         run: |
           uv run --project packages/py/core python - <<'PY'
+          import json
           import sqlite3
+          from pathlib import Path
 
-          with sqlite3.connect("packages/js/web/catalog.sqlite") as database:
-              result = database.execute("PRAGMA integrity_check").fetchone()
-          if result != ("ok",):
-              raise SystemExit(f"SQLite integrity check failed: {result}")
+          root = Path("packages/js/web")
+          catalog = json.loads((root / "catalog.json").read_text())
+          schema_root = root / "catalog" / f"v{catalog['schema_version']}"
+          index = json.loads((root / "catalog" / "index.json").read_text())
+          if index["latest_schema_version"] != catalog["schema_version"]:
+              raise SystemExit("Catalog version index does not match catalog.json")
+          if index["updated_at"] != catalog["updated_at"]:
+              raise SystemExit("Catalog version index timestamp does not match catalog.json")
+          if json.loads((schema_root / "catalog.json").read_text()) != catalog:
+              raise SystemExit("Versioned catalog does not match catalog.json")
+          for path in (root / "catalog.sqlite", schema_root / "catalog.sqlite"):
+              with sqlite3.connect(path) as database:
+                  result = database.execute("PRAGMA integrity_check").fetchone()
+              if result != ("ok",):
+                  raise SystemExit(f"SQLite integrity check failed for {path}: {result}")
           PY
       - name: Commit catalog updates
         run: |
-          if git diff --quiet -- packages/js/web/catalog.json packages/js/web/search-index.json packages/js/web/catalog.sqlite; then
+          if git diff --quiet -- packages/js/web/catalog.json packages/js/web/search-index.json packages/js/web/catalog.sqlite packages/js/web/catalog; then
             echo "Catalog is unchanged."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/js/web/catalog.json packages/js/web/search-index.json packages/js/web/catalog.sqlite
+          git add packages/js/web/catalog.json packages/js/web/search-index.json packages/js/web/catalog.sqlite packages/js/web/catalog
           git commit -m "Refresh published model catalog"
           git pull --rebase
           git push

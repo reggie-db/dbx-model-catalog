@@ -54,4 +54,13 @@ export async function connectModelCatalog(
 }
 
 export type * from "./browser.js";
-export { createCatalogClient } from "./browser.js";
+export {
+  PUBLISHED_CATALOG_DATABASE_URL,
+  PUBLISHED_CATALOG_INDEX_URL,
+  PUBLISHED_CATALOG_ROOT_URL,
+  PUBLISHED_CATALOG_SCHEMA_URL,
+  PUBLISHED_CATALOG_SCHEMA_VERSION,
+  PUBLISHED_CATALOG_SEARCH_INDEX_URL,
+  PUBLISHED_CATALOG_URL,
+  createCatalogClient,
+} from "./browser.js";

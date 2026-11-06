@@ -6,13 +6,22 @@ from .client import (
     ModelCatalogClient,
     PUBLISHED_CATALOG_BASE_URL,
     PUBLISHED_CATALOG_CACHE_TTL,
+    PUBLISHED_CATALOG_INDEX_URL,
+    PUBLISHED_CATALOG_SCHEMA_URL,
+    PUBLISHED_CATALOG_SCHEMA_VERSION,
     PUBLISHED_CATALOG_URL,
     fetch_published_catalog,
     published_catalog_cache_directory,
 )
 from .database import CATALOG_DATABASE_SCHEMA_VERSION, write_catalog_database
 from .filters import CapabilityName, CatalogFilters
-from .models import CatalogModel, CatalogModelRecord, ModelCatalog
+from .models import (
+    MODEL_CATALOG_SCHEMA_VERSION,
+    CatalogModel,
+    CatalogModelRecord,
+    ModelCatalog,
+    ModelCatalogSchemaVersion,
+)
 from .query import (
     CatalogOrderBy,
     CatalogOrderByField,
@@ -61,10 +70,15 @@ __all__ = [
     "CatalogSearchScores",
     "CatalogSearchWeights",
     "CapabilityName",
+    "MODEL_CATALOG_SCHEMA_VERSION",
     "ModelCatalog",
     "ModelCatalogClient",
+    "ModelCatalogSchemaVersion",
     "PUBLISHED_CATALOG_BASE_URL",
     "PUBLISHED_CATALOG_CACHE_TTL",
+    "PUBLISHED_CATALOG_INDEX_URL",
+    "PUBLISHED_CATALOG_SCHEMA_URL",
+    "PUBLISHED_CATALOG_SCHEMA_VERSION",
     "PUBLISHED_CATALOG_URL",
     "SEARCH_WEIGHTS",
     "SerializableCatalogQuery",

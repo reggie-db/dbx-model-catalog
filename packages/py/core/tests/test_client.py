@@ -8,6 +8,9 @@ import brotli
 import pytest
 
 from dbx_model_catalog import (
+    MODEL_CATALOG_SCHEMA_VERSION,
+    PUBLISHED_CATALOG_SCHEMA_VERSION,
+    PUBLISHED_CATALOG_URL,
     CatalogFilters,
     CatalogModelRecord,
     CatalogQueryOptions,
@@ -116,6 +119,11 @@ def test_reads_brotli_and_injected_fetch(catalog: dict[str, object]) -> None:
     assert fetched.get("databricks-llama").name == "Llama Active"
 
 
+def test_published_catalog_url_targets_compatible_schema() -> None:
+    assert PUBLISHED_CATALOG_SCHEMA_VERSION == MODEL_CATALOG_SCHEMA_VERSION == 15
+    assert PUBLISHED_CATALOG_URL.endswith("/catalog/v15/catalog.json")
+
+
 def test_accepts_injected_decoder(catalog: dict[str, object]) -> None:
     client = ModelCatalogClient.from_brotli(
         b"not-brotli", decode=lambda _payload, _encoding: json.dumps(catalog)
@@ -162,6 +170,10 @@ def test_writes_normalized_catalog_artifact(
     json_path = write_catalog_artifacts(parsed, tmp_path)
 
     assert ModelCatalogClient.from_json(json_path.read_bytes()).catalog == parsed
+    version_directory = tmp_path / "catalog" / f"v{parsed.schema_version}"
+    assert ModelCatalogClient.from_json(
+        (version_directory / "catalog.json").read_bytes()
+    ).catalog == parsed
     search_index = json.loads((tmp_path / "search-index.json").read_text())
     assert search_index["catalog_schema_version"] == parsed.schema_version
     assert len(search_index["documents"]) == len(parsed.models)
@@ -177,6 +189,42 @@ def test_writes_normalized_catalog_artifact(
             "SELECT model_id FROM model_search WHERE model_search MATCH 'reasoning'"
         ).fetchall()
         assert search_results
+    version_index = json.loads((tmp_path / "catalog" / "index.json").read_text())
+    assert version_index == {
+        "latest_schema_version": parsed.schema_version,
+        "updated_at": "2026-10-31T12:00:00Z",
+        "versions": [
+            {
+                "schema_version": parsed.schema_version,
+                "updated_at": "2026-10-31T12:00:00Z",
+                "catalog": f"v{parsed.schema_version}/catalog.json",
+                "search_index": f"v{parsed.schema_version}/search-index.json",
+                "database": f"v{parsed.schema_version}/catalog.sqlite",
+            }
+        ],
+    }
+
+
+def test_preserves_previous_schema_lanes(
+    catalog: dict[str, object], tmp_path
+) -> None:
+    previous = tmp_path / "catalog" / "v14"
+    previous.mkdir(parents=True)
+    (previous / "catalog.json").write_text(
+        '{"schema_version":14,"updated_at":"2026-01-01T00:00:00Z","models":{}}\n'
+    )
+    (previous / "search-index.json").write_text("{}\n")
+    (previous / "catalog.sqlite").write_bytes(b"previous schema database")
+
+    parsed = ModelCatalogClient.from_catalog(catalog).catalog
+    write_catalog_artifacts(parsed, tmp_path)
+
+    version_index = json.loads((tmp_path / "catalog" / "index.json").read_text())
+    assert [version["schema_version"] for version in version_index["versions"]] == [
+        14,
+        15,
+    ]
+    assert (previous / "catalog.json").is_file()
 
 
 def test_queries_boolean_text_sort_and_limit(catalog: dict[str, object]) -> None:

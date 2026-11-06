@@ -1,6 +1,17 @@
 import { expect, test } from 'bun:test';
 import { fileURLToPath } from 'node:url';
-import { connectModelCatalog } from '../src/index.js';
+import {
+  PUBLISHED_CATALOG_INDEX_URL,
+  PUBLISHED_CATALOG_SCHEMA_VERSION,
+  PUBLISHED_CATALOG_URL,
+  connectModelCatalog,
+} from '../src/index.js';
+
+test('exports schema-scoped catalog URLs', () => {
+  expect(PUBLISHED_CATALOG_SCHEMA_VERSION).toBe(15);
+  expect(PUBLISHED_CATALOG_URL).toEndWith('/catalog/v15/catalog.json');
+  expect(PUBLISHED_CATALOG_INDEX_URL).toEndWith('/catalog/index.json');
+});
 
 test('uses local IPC by default and filters the catalog', async () => {
   const previousCatalogPath = process.env.DBX_MODEL_CATALOG_PATH;

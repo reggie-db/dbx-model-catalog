@@ -7,6 +7,10 @@ from typing import Annotated, Literal
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, confloat, conint, constr
 
 
+MODEL_CATALOG_SCHEMA_VERSION = 15
+ModelCatalogSchemaVersion = Literal[MODEL_CATALOG_SCHEMA_VERSION]
+
+
 class Type(StrEnum):
     """
     Normalized model type.
@@ -819,7 +823,7 @@ class ModelCatalog(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    schema_version: Literal[15]
+    schema_version: ModelCatalogSchemaVersion
     """
     Version of the published catalog contract.
     """
@@ -840,7 +844,9 @@ class CatalogModelRecord(CatalogModel):
 __all__ = [
     "CatalogModel",
     "CatalogModelRecord",
+    "MODEL_CATALOG_SCHEMA_VERSION",
     "ModelCatalog",
+    "ModelCatalogSchemaVersion",
     "SourceLink",
     "Status",
     "Type",

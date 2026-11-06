@@ -19,5 +19,20 @@ provision its isolated environment on the first local connection. Generated
 catalog types are re-exported from this package. The package does not contain a
 separate JavaScript schema implementation.
 
-For direct public ingestion without the service client, fetch:
-<https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.json>.
+For direct public ingestion without the service client, use the exported URL
+for the schema this package was generated against:
+
+```ts
+import {
+  PUBLISHED_CATALOG_INDEX_URL,
+  PUBLISHED_CATALOG_URL,
+} from "@dbx-tools/dbx-model-catalog/browser";
+
+const catalog = await fetch(PUBLISHED_CATALOG_URL).then(response => response.json());
+const registry = await fetch(PUBLISHED_CATALOG_INDEX_URL).then(response => response.json());
+```
+
+The current URL is
+<https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.json>.
+Its `updated_at` field records the latest source-fetch timestamp represented by
+the catalog.
