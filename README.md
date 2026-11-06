@@ -127,10 +127,15 @@ remote = ModelCatalogClient.from_url("https://example.com/catalog.json")
 ## Node client
 
 The workspace package is `@dbx-tools/dbx-model-catalog`. Without a URL it
-starts the Python Pynect worker and connects over local IPC. With a WebSocket
+starts the bundled Python worker and connects over local IPC. With a WebSocket
 URL it connects to an existing catalog server. The npm artifact carries the
-Python service source, and Pynect asks uv to provision its isolated environment
-on the first local connection.
+Python service source, and the client asks uv to provision an isolated
+environment on the first local connection.
+
+The worker is only needed for the service-style Node API. It loads and validates
+the Python-owned catalog contract, applies catalog filters, and runs the ranked
+search implementation. It does not perform the explorer table's sorting or
+column filtering.
 
 ```ts
 import { connectModelCatalog } from "@dbx-tools/dbx-model-catalog";
@@ -150,6 +155,11 @@ await using catalog = await connectModelCatalog("wss://catalog.example.com");
 const completeCatalog = await catalog.client.catalog();
 ```
 
+Consumers that only need the published snapshot do not need Python or uv. The
+`@dbx-tools/dbx-model-catalog/browser` entry point exports the generated types,
+published artifact URLs, and a browser-safe client that can connect to an
+existing WebSocket server. It never starts a local worker.
+
 The Bun CLI supports local IPC and remote WebSocket access:
 
 ```sh
@@ -167,10 +177,14 @@ bun run serve
 ```
 
 The server listens on `http://127.0.0.1:8787`. It exposes the catalog over
-Pynect WebSocket channels and provides `/health`, `/asyncapi`, and
-`/asyncapi.json`. The local browser uses the WebSocket service. Static builds
-for Docker or another external host fetch the schema-scoped artifacts from the
-repository's `main` branch.
+WebSocket channels and provides `/health`, `/asyncapi`, and `/asyncapi.json`.
+The local browser uses the WebSocket service. Static builds for Docker or
+another external host fetch the schema-scoped artifacts from the repository's
+`main` branch.
+
+In static mode, the explorer fetches `catalog.json` and `search-index.json`
+directly from GitHub. Ranked text search, table sorting, and column filtering
+run in the browser; no Python process or WebSocket server is involved.
 
 Set `DBX_MODEL_CATALOG_PATH` to use an explicit local JSON artifact. Without
 that variable, the Python service loads the published catalog.
@@ -231,11 +245,11 @@ bun run build
 The repository layout is:
 
 - `packages/py/core`: schema, Pydantic models, loading, filtering, and search
-- `packages/py/server`: Chanx WebSocket server and Pynect worker
+- `packages/py/server`: WebSocket server and local Python worker
 - `packages/py/sync`: source ingestion, normalization, and catalog publication
-- `packages/js/client`: generated Pynect contract plus browser and Node/Bun clients
+- `packages/js/client`: generated service contract plus browser and Node/Bun clients
 - `packages/js/web`: catalog explorer and published JSON, search, and SQLite artifacts
 
-Python owns the schema and service contract. Pynect generates the TypeScript
-types in `packages/js/client/src/_generated`; handwritten TypeScript does not
-duplicate the Python models.
+Python owns the schema and service contract. The generation step produces the
+TypeScript types in `packages/js/client/src/_generated`; handwritten TypeScript
+does not duplicate the Python models.
