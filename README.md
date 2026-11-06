@@ -11,9 +11,9 @@ JavaScript packages use the `@dbx-tools` scope.
 
 ## Published catalog
 
-- Explorer: <https://model-catalog.dbx.tools/>
-- Stable JSON: <https://model-catalog.dbx.tools/catalog.json>
-- SQLite database: <https://model-catalog.dbx.tools/catalog.sqlite>
+- Explorer: <https://reggie-db.github.io/dbx-model-catalog/>
+- Stable JSON: <https://reggie-db.github.io/dbx-model-catalog/catalog.json>
+- SQLite database: <https://reggie-db.github.io/dbx-model-catalog/catalog.sqlite>
 
 GitHub Pages is the public distribution endpoint. It provides a stable URL for
 clients without requiring release-tag discovery or GitHub API authentication.
@@ -60,7 +60,7 @@ Schema consumers should check `schema_version`. The complete JSON Schema is at
 Download the current catalog:
 
 ```sh
-curl -fsSL https://model-catalog.dbx.tools/catalog.json \
+curl -fsSL https://reggie-db.github.io/dbx-model-catalog/catalog.json \
   -o catalog.json
 ```
 
@@ -68,7 +68,7 @@ Use it directly from JavaScript:
 
 ```ts
 const response = await fetch(
-  "https://model-catalog.dbx.tools/catalog.json",
+  "https://reggie-db.github.io/dbx-model-catalog/catalog.json",
 );
 if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
 
@@ -80,7 +80,7 @@ const activeModels = Object.entries(catalog.models)
 Download and query the maintained SQLite database:
 
 ```sh
-curl -fsSL https://model-catalog.dbx.tools/catalog.sqlite \
+curl -fsSL https://reggie-db.github.io/dbx-model-catalog/catalog.sqlite \
   -o catalog.sqlite
 sqlite3 catalog.sqlite \
   "SELECT id, name FROM models WHERE status = 'active' ORDER BY name"
