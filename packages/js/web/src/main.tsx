@@ -778,7 +778,7 @@ function ReasoningDetails({ model }: { model: CatalogModel }) {
   );
 }
 
-function ModelDescription({ description, hidden }: { description: string; hidden: boolean }) {
+function ModelDescription({ description }: { description: string }) {
   const textRef = useRef<HTMLSpanElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [canExpand, setCanExpand] = useState(false);
@@ -789,7 +789,7 @@ function ModelDescription({ description, hidden }: { description: string; hidden
 
   useEffect(() => {
     const text = textRef.current;
-    if (!text || hidden) return;
+    if (!text) return;
 
     const measure = () => {
       const lineHeight = Number.parseFloat(window.getComputedStyle(text).lineHeight);
@@ -800,10 +800,10 @@ function ModelDescription({ description, hidden }: { description: string; hidden
     const observer = new ResizeObserver(measure);
     observer.observe(text);
     return () => observer.disconnect();
-  }, [description, hidden]);
+  }, [description]);
 
   return (
-    <DialogDescription className={hidden ? "visually-hidden" : "model-description"}>
+    <DialogDescription className="model-description">
       <span ref={textRef} className={`model-description-text${expanded ? "" : " model-description-clamped"}`}>
         {description}
       </span>
@@ -857,13 +857,14 @@ function ModelDetails({ model }: { model: CatalogRow }) {
       <DialogHeader>
         <p className="model-id">{model.id}</p>
         <DialogTitle><SourcedText sources={fieldSources(model, "name")}>{model.name}</SourcedText></DialogTitle>
-        <ModelDescription description={model.description || "No description is available."} hidden={jsonView} />
+        {jsonView ? <DialogDescription className="visually-hidden">{model.description || "No description is available."}</DialogDescription> : null}
       </DialogHeader>
       {jsonView ? (
         <div className="model-dialog-body model-dialog-json" role="region" tabIndex={0} aria-label={`${model.name} raw JSON`}>
           <JsonBlock className="model-json" json={rawJson} />
         </div>
       ) : <div className="model-dialog-body">
+        <ModelDescription description={model.description || "No description is available."} />
         <dl className="detail-grid">
           {([
             ["status", "Status", <StatusMark status={model.status} />],
