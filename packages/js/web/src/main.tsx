@@ -778,6 +778,49 @@ function ReasoningDetails({ model }: { model: CatalogModel }) {
   );
 }
 
+function ModelDescription({ description, hidden }: { description: string; hidden: boolean }) {
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [canExpand, setCanExpand] = useState(false);
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [description]);
+
+  useEffect(() => {
+    const text = textRef.current;
+    if (!text || hidden) return;
+
+    const measure = () => {
+      const lineHeight = Number.parseFloat(window.getComputedStyle(text).lineHeight);
+      const collapsedHeight = Number.isFinite(lineHeight) ? lineHeight * 3 : text.clientHeight;
+      setCanExpand(text.scrollHeight > collapsedHeight + 1);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(text);
+    return () => observer.disconnect();
+  }, [description, hidden]);
+
+  return (
+    <DialogDescription className={hidden ? "visually-hidden" : "model-description"}>
+      <span ref={textRef} className={`model-description-text${expanded ? "" : " model-description-clamped"}`}>
+        {description}
+      </span>
+      {canExpand ? (
+        <button
+          className="model-description-toggle"
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded(current => !current)}
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      ) : null}
+    </DialogDescription>
+  );
+}
+
 function ModelDetails({ model }: { model: CatalogRow }) {
   const [view, setView] = useState<"details" | "json">("details");
   const rankings = [...model.rankings].sort((left, right) => left.rank - right.rank);
@@ -814,7 +857,7 @@ function ModelDetails({ model }: { model: CatalogRow }) {
       <DialogHeader>
         <p className="model-id">{model.id}</p>
         <DialogTitle><SourcedText sources={fieldSources(model, "name")}>{model.name}</SourcedText></DialogTitle>
-        <DialogDescription className={jsonView ? "visually-hidden" : undefined}>{model.description || "No description is available."}</DialogDescription>
+        <ModelDescription description={model.description || "No description is available."} hidden={jsonView} />
       </DialogHeader>
       {jsonView ? (
         <div className="model-dialog-body model-dialog-json" role="region" tabIndex={0} aria-label={`${model.name} raw JSON`}>
@@ -1382,7 +1425,15 @@ function App() {
                 </TableHeader>
                 <TableBody>
                   {table.getRowModel().rows.map(row => (
-                    <TableRow key={row.id}>
+                    <TableRow
+                      key={row.id}
+                      data-model-row="true"
+                      onClick={event => {
+                        const target = event.target;
+                        if (target instanceof Element && target.closest("a, button, input, select, textarea, [role='button'], [contenteditable='true']")) return;
+                        openModel(row.original);
+                      }}
+                    >
                       {row.getVisibleCells().map(cell => (
                         <TableCell data-column-id={cell.column.id} key={cell.id} style={{ width: cell.column.getSize() }}>
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
