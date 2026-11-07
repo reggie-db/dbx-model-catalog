@@ -194,8 +194,8 @@ that variable, the Python service loads the published catalog.
 Build and run the static explorer without bundling a catalog snapshot:
 
 ```sh
-docker build -t dbx-model-catalog-demo .
-docker run --rm -p 8080:8080 dbx-model-catalog-demo
+bun run container:build
+bun run container:run
 ```
 
 Open <http://localhost:8080>. The container serves only the compiled explorer.
@@ -205,19 +205,48 @@ remains the source of truth. The image does not contain `catalog.json`,
 `search-index.json`, `catalog.sqlite`, or the version registry.
 
 The image uses an unprivileged Bun static server and keeps `/healthz` available
-for container health checks. Set `DBX_MODEL_CATALOG_HEAD_HTML` to inject one or
-more raw HTML fragments immediately before `</head>`. OptionKit accepts a JSON
-array or a quoted shell-word list. For example, an Umami deployment can supply
-its complete script element without rebuilding the image:
+for container health checks. Set `DBX_MODEL_CATALOG_HEAD_HTML` to a complete raw
+head fragment, a script URL, or a JSON array containing multiple values. Plain
+HTTP and HTTPS URLs are automatically wrapped in deferred script elements. Raw
+markup is inserted unchanged, so an Umami deployment can supply its complete
+script element without rebuilding the image:
 
 ```sh
-docker run --rm -p 8080:8080 \
-  -e 'DBX_MODEL_CATALOG_HEAD_HTML=["<script defer src=\"https://analytics.example.com/script.js\" data-website-id=\"00000000-0000-0000-0000-000000000000\"></script>"]' \
-  dbx-model-catalog-demo
+DBX_MODEL_CATALOG_HEAD_HTML='<script
+  defer
+  src="https://analytics.lfpconnect.io/script.js"
+  data-website-id="YOUR_WEBSITE_ID"
+></script>' \
+  bun run container:run
 ```
+
+For a script that does not require additional attributes, pass its URL directly:
+
+```sh
+DBX_MODEL_CATALOG_HEAD_HTML=https://analytics.lfpconnect.io/script.js \
+  bun run container:run
+```
+
+Use a JSON array when more than one script or head fragment is required.
 
 Only set this variable from trusted deployment configuration. Its values are
 inserted verbatim so script attributes and other head markup remain intact.
+
+Container operations are available as repository scripts:
+
+- `bun run container:build` builds and loads `dbx-model-catalog-demo`.
+- `bun run container:run` runs the image on port `8080` and forwards
+  `DBX_MODEL_CATALOG_HEAD_HTML` when it is set.
+- `bun run container:smoke` builds the image, checks `/healthz`, verifies head
+  injection, and confirms that catalog payloads are absent.
+- `bun run container:publish` publishes with Buildx, provenance, and an SBOM.
+- `bun run container:verify` anonymously reads the registry manifest and checks
+  the runtime user, port, command, health check, and optional expected revision.
+
+Override `CONTAINER_IMAGE`, `CONTAINER_PORT`, or `CONTAINER_PLATFORM` when
+needed. Local registry and Docker host mappings are opt-in through
+`NPM_CONFIG_REGISTRY` and `CONTAINER_ADD_HOST`; neither has a repository default.
+The GitHub workflow uses the same publish and verification scripts.
 
 ## Catalog publication
 

@@ -1,5 +1,7 @@
 FROM oven/bun:1.4.4-alpine AS build
 
+ARG NPM_CONFIG_REGISTRY
+
 WORKDIR /workspace
 
 COPY package.json ./
@@ -29,6 +31,8 @@ RUN mkdir -p packages/js/web/catalog \
     && test ! -e packages/js/web/dist/search-index.json
 
 FROM oven/bun:1.4.4-alpine
+
+ARG NPM_CONFIG_REGISTRY
 
 LABEL org.opencontainers.image.source="https://github.com/reggie-db/dbx-model-catalog"
 

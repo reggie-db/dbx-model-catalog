@@ -10,12 +10,40 @@ export interface StaticServerOptions {
   readonly root: string;
 }
 
+export function parseHeadHtml(value: string): readonly string[] {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return [];
+  if (!trimmed.startsWith('[')) return [value];
+
+  const parsed = JSON.parse(trimmed) as unknown;
+  if (!Array.isArray(parsed) || !parsed.every(entry => typeof entry === 'string')) {
+    throw new TypeError('DBX_MODEL_CATALOG_HEAD_HTML must be a string or a JSON array of strings');
+  }
+  return parsed;
+}
+
+export function renderHeadFragment(fragment: string): string {
+  const trimmed = fragment.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed;
+
+  const url = new URL(trimmed);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new TypeError(`Unsupported script URL protocol: ${url.protocol}`);
+  }
+  const source = url.toString()
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+  return `<script defer src="${source}"></script>`;
+}
+
 export function injectHeadHtml(
   html: string,
   fragments: readonly string[],
 ): string {
   const content = fragments
-    .map(fragment => fragment.trim())
+    .map(renderHeadFragment)
     .filter(fragment => fragment.length > 0);
   if (content.length === 0) return html;
 
@@ -111,8 +139,8 @@ async function main(): Promise<void> {
     moduleUrl: import.meta.url,
   });
   const optionsSchema = z.object({
-    headHtml: z.array(z.string()).default([]).describe(
-      'Raw HTML fragments to inject immediately before the closing head tag.',
+    headHtml: z.string().default('').describe(
+      'A script URL, raw head fragment, or JSON array of either form.',
     ),
     hostname: z.string().default('0.0.0.0').describe('Host interface to bind.'),
     port: z.number().int().min(1).max(65_535).default(8080).describe('Port to listen on.'),
@@ -126,7 +154,10 @@ async function main(): Promise<void> {
     .input(optionsSchema)
     .output(z.void())
     .handler(async options => {
-      const server = await startStaticServer(options);
+      const server = await startStaticServer({
+        ...options,
+        headHtml: parseHeadHtml(options.headHtml),
+      });
       console.log(`Model catalog listening on ${server.url}`);
     });
 

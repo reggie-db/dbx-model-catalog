@@ -14,6 +14,7 @@ on:
       - packages/js/client/**
       - packages/js/static-server/**
       - packages/js/web/**
+      - scripts/container-*
       - "!packages/js/web/catalog/**"
       - "!packages/js/web/catalog.json"
       - "!packages/js/web/catalog.sqlite"
@@ -43,6 +44,10 @@ jobs:
           persist-credentials: false
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
       - name: Log in to GHCR
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
@@ -58,15 +63,15 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,format=long,prefix=sha-
       - name: Build and push image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
-          cache-from: type=gha,scope=model-catalog-ui
-          cache-to: type=gha,mode=max,scope=model-catalog-ui
-          provenance: mode=max
-          sbom: true
+        env:
+          CONTAINER_CACHE_FROM: type=gha,scope=model-catalog-ui
+          CONTAINER_CACHE_TO: type=gha,mode=max,scope=model-catalog-ui
+          CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
+          CONTAINER_LABELS: ${{ steps.metadata.outputs.labels }}
+          CONTAINER_TAGS: ${{ steps.metadata.outputs.tags }}
+        run: bun run container:publish
+      - name: Verify anonymous image access
+        env:
+          CONTAINER_EXPECTED_REVISION: ${{ github.sha }}
+          CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+        run: bun run container:verify

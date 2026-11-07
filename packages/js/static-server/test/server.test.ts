@@ -2,7 +2,44 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { injectHeadHtml, resolveAssetPath, startStaticServer } from '../src/server.js';
+import {
+  injectHeadHtml,
+  parseHeadHtml,
+  renderHeadFragment,
+  resolveAssetPath,
+  startStaticServer,
+} from '../src/server.js';
+
+describe('parseHeadHtml', () => {
+  test('preserves a multiline script block as one fragment', () => {
+    const script = `<script
+  defer
+  src="https://analytics.lfpconnect.io/script.js"
+  data-website-id="YOUR_WEBSITE_ID"
+></script>`;
+    expect(parseHeadHtml(script)).toEqual([script]);
+  });
+
+  test('accepts a JSON array for multiple entries', () => {
+    expect(parseHeadHtml('["https://one.example/script.js","<meta name=\\"demo\\">"]')).toEqual([
+      'https://one.example/script.js',
+      '<meta name="demo">',
+    ]);
+  });
+});
+
+describe('renderHeadFragment', () => {
+  test('wraps an HTTP URL as a deferred script', () => {
+    expect(renderHeadFragment('https://analytics.lfpconnect.io/script.js')).toBe(
+      '<script defer src="https://analytics.lfpconnect.io/script.js"></script>',
+    );
+  });
+
+  test('passes raw script elements through', () => {
+    const script = '<script defer src="https://example.test/script.js" data-site="demo"></script>';
+    expect(renderHeadFragment(script)).toBe(script);
+  });
+});
 
 describe('injectHeadHtml', () => {
   test('injects multiple fragments before the closing head tag', () => {
