@@ -41,23 +41,23 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@3f80ee1c16a02cd28f71ca3d1e8d40ed58d59f13 # v4.4.1
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Log in to GHCR
-        uses: docker/login-action@b8f7d53e84999a10c28d844a1894d1859f7c0790 # v4.7.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate image metadata
         id: metadata
-        uses: docker/metadata-action@c299e40c654434d57b51614dafcd46f627cc351e # v6.2.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,format=long,prefix=sha-
       - name: Build and push image
-        uses: docker/build-push-action@251ca1e9109ea3cc1fca28b2952595f3f294438c # v7.4.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: Dockerfile
