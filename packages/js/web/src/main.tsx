@@ -29,8 +29,11 @@ import {
 } from "@databricks/appkit-ui/react";
 import { BrandLogo, BrandProvider } from "@dbx-tools/ui/branding/react";
 import { JsonBlock } from "@dbx-tools/ui/react";
-import type { SetHashParamOpts } from "@metapages/hash-query";
-import { useHashParam } from "@metapages/hash-query/react-hooks";
+import {
+  getUrlHashParamsFromHashString,
+  setHashParamsInUrl,
+  type SetHashParamOpts,
+} from "@metapages/hash-query";
 import AlibabaCloud from "@lobehub/icons/es/AlibabaCloud";
 import Anthropic from "@lobehub/icons/es/Anthropic";
 import BAAI from "@lobehub/icons/es/BAAI";
@@ -90,7 +93,7 @@ import {
   Video,
   Wrench,
 } from "lucide-react";
-import { type ComponentType, type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentType, type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import {
   PUBLISHED_CATALOG_SEARCH_INDEX_URL,
@@ -118,6 +121,37 @@ import {
 } from "./view-state.js";
 
 declare const __DBX_MODEL_CATALOG_WEB_SOURCE__: "auto" | "github";
+
+function subscribeToHash(onChange: () => void): () => void {
+  window.addEventListener("hashchange", onChange);
+  return () => window.removeEventListener("hashchange", onChange);
+}
+
+function currentHash(): string {
+  return window.location.hash;
+}
+
+function emptyHash(): string {
+  return "";
+}
+
+function updateCatalogViewHash(
+  state: CatalogViewState,
+  existingParams: Readonly<Record<string, string>>,
+  options?: SetHashParamOpts,
+): void {
+  const url = setHashParamsInUrl(
+    window.location.href,
+    encodeCatalogViewState(state, existingParams),
+  );
+  if (url.hash === window.location.hash) return;
+  if (options?.modifyHistory) {
+    window.location.hash = url.hash;
+    return;
+  }
+  window.history.replaceState(null, document.title, `${url.pathname}${url.search}${url.hash}`);
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
 
 type Cloud = "aws" | "azure" | "gcp";
 type Ranking = CatalogModel["rankings"][number];
@@ -930,10 +964,11 @@ function App() {
   const [initialTablePreferences] = useState(loadTablePreferences);
   const [legacyModel] = useState(() => new URL(window.location.href).searchParams.get("model") ?? undefined);
   const viewDefaults = useMemo(() => ({ legacyModel }), [legacyModel]);
-  const [encodedView, setEncodedView] = useHashParam("view");
+  const hash = useSyncExternalStore(subscribeToHash, currentHash, emptyHash);
+  const hashParams = useMemo(() => getUrlHashParamsFromHashString(hash)[1], [hash]);
   const viewState = useMemo(
-    () => decodeCatalogViewState(encodedView, viewDefaults),
-    [encodedView, viewDefaults],
+    () => decodeCatalogViewState(hashParams, viewDefaults),
+    [hashParams, viewDefaults],
   );
   const viewStateRef = useRef(viewState);
   viewStateRef.current = viewState;
@@ -943,13 +978,12 @@ function App() {
   ) => {
     const next = functionalUpdate(updater, viewStateRef.current);
     viewStateRef.current = next;
-    setEncodedView(encodeCatalogViewState(next), options);
-  }, [setEncodedView]);
+    updateCatalogViewHash(next, hashParams, options);
+  }, [hashParams]);
 
   useEffect(() => {
-    const canonical = encodeCatalogViewState(viewState);
-    if (encodedView !== canonical) setEncodedView(canonical);
-  }, [encodedView, setEncodedView, viewState]);
+    updateCatalogViewHash(viewState, hashParams);
+  }, [hashParams, viewState]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
