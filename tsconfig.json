@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "./packages/js/client" },
+    { "path": "./packages/js/static-server" },
     { "path": "./packages/js/web" }
   ]
 }

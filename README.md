@@ -204,6 +204,21 @@ At runtime the browser fetches the schema-scoped catalog and search index from
 remains the source of truth. The image does not contain `catalog.json`,
 `search-index.json`, `catalog.sqlite`, or the version registry.
 
+The image uses an unprivileged Bun static server and keeps `/healthz` available
+for container health checks. Set `DBX_MODEL_CATALOG_HEAD_HTML` to inject one or
+more raw HTML fragments immediately before `</head>`. OptionKit accepts a JSON
+array or a quoted shell-word list. For example, an Umami deployment can supply
+its complete script element without rebuilding the image:
+
+```sh
+docker run --rm -p 8080:8080 \
+  -e 'DBX_MODEL_CATALOG_HEAD_HTML=["<script defer src=\"https://analytics.example.com/script.js\" data-website-id=\"00000000-0000-0000-0000-000000000000\"></script>"]' \
+  dbx-model-catalog-demo
+```
+
+Only set this variable from trusted deployment configuration. Its values are
+inserted verbatim so script attributes and other head markup remain intact.
+
 ## Catalog publication
 
 `.github/workflows/refresh-catalog.yml` runs every three days and can also be

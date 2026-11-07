@@ -12,6 +12,7 @@ on:
       - package.json
       - tsconfig.json
       - packages/js/client/**
+      - packages/js/static-server/**
       - packages/js/web/**
       - "!packages/js/web/catalog/**"
       - "!packages/js/web/catalog.json"

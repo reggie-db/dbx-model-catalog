@@ -1,0 +1,19 @@
+{
+  "name": "@dbx-tools/dbx-model-catalog-static-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "bun run tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "fireargs": "catalog:",
+    "optionkit": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}
