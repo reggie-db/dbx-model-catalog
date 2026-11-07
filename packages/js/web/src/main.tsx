@@ -1004,9 +1004,23 @@ function App() {
     sorting,
     columnFilters,
   } = viewState;
+  const [searchInput, setSearchInput] = useState(search);
   const setSearch = useCallback((value: string) => {
-    updateViewState(current => ({ ...current, search: value }));
-  }, [updateViewState]);
+    setSearchInput(value);
+  }, []);
+
+  useEffect(() => {
+    setSearchInput(search);
+  }, [search]);
+
+  useEffect(() => {
+    if (searchInput === search) return;
+    const timeout = window.setTimeout(() => {
+      updateViewState(current => ({ ...current, search: searchInput }));
+    }, searchDebounceMs);
+    return () => window.clearTimeout(timeout);
+  }, [search, searchInput, updateViewState]);
+
   const setSorting: OnChangeFn<SortingState> = useCallback(updater => {
     updateViewState(current => ({
       ...current,
@@ -1081,7 +1095,7 @@ function App() {
     ? models.find(model => model.id === viewState.model) ?? null
     : null;
 
-  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const normalizedSearch = searchInput.trim().toLocaleLowerCase();
   const hasSearch = Boolean(normalizedSearch);
 
   useEffect(() => {
@@ -1095,10 +1109,10 @@ function App() {
     const timeout = window.setTimeout(() => {
       const client = catalogClient.current;
       const request = client
-        ? client.list({ query: search.trim(), limit: 1_000 })
+        ? client.list({ query: searchInput.trim(), limit: 1_000 })
         : Promise.resolve(
             staticSearchIndex
-              ? searchStaticCatalog(staticSearchIndex, models, search.trim())
+              ? searchStaticCatalog(staticSearchIndex, models, searchInput.trim())
               : models.filter(model => searchText(model.id, model).includes(normalizedSearch)),
           );
       request
@@ -1119,7 +1133,7 @@ function App() {
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [catalog, models, normalizedSearch, search, staticSearchIndex]);
+  }, [catalog, models, normalizedSearch, searchInput, staticSearchIndex]);
 
   useEffect(() => {
     setSorting(current => {
@@ -1367,7 +1381,7 @@ function App() {
             <Label className="visually-hidden" htmlFor="catalog-search">Search catalog</Label>
             <InputGroup className="search-control">
               <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
-              <InputGroupInput id="catalog-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, ID, publisher, family, task…" />
+              <InputGroupInput id="catalog-search" type="search" value={searchInput} onChange={event => setSearch(event.target.value)} placeholder="Name, ID, publisher, family, task…" />
             </InputGroup>
           </div>
           <nav className="top-actions" aria-label="Catalog actions">
