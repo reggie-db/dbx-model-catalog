@@ -185,13 +185,24 @@ another external host fetch the schema-scoped artifacts from the repository's
 In static mode, the explorer fetches `catalog.json` and `search-index.json`
 directly from GitHub. Ranked text search, table sorting, and column filtering
 run in the browser; no Python process or WebSocket server is involved.
+Search, filters, sorting, and the open model view are encoded in the URL hash,
+so copying the browser URL preserves the current results and selection. Column
+layout preferences remain local to each browser. Unknown or outdated view
+fields are ignored when older links are opened.
 
 Set `DBX_MODEL_CATALOG_PATH` to use an explicit local JSON artifact. Without
 that variable, the Python service loads the published catalog.
 
 ### Static Docker demo
 
-Build and run the static explorer without bundling a catalog snapshot:
+Run the published public image from GHCR:
+
+```sh
+docker run --rm -p 8080:8080 ghcr.io/reggie-db/dbx-model-catalog:latest
+```
+
+The workflow also publishes immutable `sha-<commit>` tags for deployments that
+should not move automatically. To build the same image locally:
 
 ```sh
 bun run container:build
@@ -214,7 +225,7 @@ script element without rebuilding the image:
 ```sh
 DBX_MODEL_CATALOG_HEAD_HTML='<script
   defer
-  src="https://analytics.lfpconnect.io/script.js"
+  src="https://analytics.example.com/script.js"
   data-website-id="YOUR_WEBSITE_ID"
 ></script>' \
   bun run container:run
@@ -223,7 +234,7 @@ DBX_MODEL_CATALOG_HEAD_HTML='<script
 For a script that does not require additional attributes, pass its URL directly:
 
 ```sh
-DBX_MODEL_CATALOG_HEAD_HTML=https://analytics.lfpconnect.io/script.js \
+DBX_MODEL_CATALOG_HEAD_HTML=https://analytics.example.com/script.js \
   bun run container:run
 ```
 

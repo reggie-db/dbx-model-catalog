@@ -14,7 +14,7 @@ describe('parseHeadHtml', () => {
   test('preserves a multiline script block as one fragment', () => {
     const script = `<script
   defer
-  src="https://analytics.lfpconnect.io/script.js"
+  src="https://analytics.example.com/script.js"
   data-website-id="YOUR_WEBSITE_ID"
 ></script>`;
     expect(parseHeadHtml(script)).toEqual([script]);
@@ -30,8 +30,8 @@ describe('parseHeadHtml', () => {
 
 describe('renderHeadFragment', () => {
   test('wraps an HTTP URL as a deferred script', () => {
-    expect(renderHeadFragment('https://analytics.lfpconnect.io/script.js')).toBe(
-      '<script defer src="https://analytics.lfpconnect.io/script.js"></script>',
+    expect(renderHeadFragment('https://analytics.example.com/script.js')).toBe(
+      '<script defer src="https://analytics.example.com/script.js"></script>',
     );
   });
 

@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@dbx-tools/dbx-model-catalog": "workspace:*",
-    "fuse.js": "catalog:"
+    "@metapages/hash-query": "catalog:",
+    "fuse.js": "catalog:",
+    "zod": "catalog:"
   }
 }

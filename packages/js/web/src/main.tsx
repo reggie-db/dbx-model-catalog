@@ -29,6 +29,8 @@ import {
 } from "@databricks/appkit-ui/react";
 import { BrandLogo, BrandProvider } from "@dbx-tools/ui/branding/react";
 import { JsonBlock } from "@dbx-tools/ui/react";
+import type { SetHashParamOpts } from "@metapages/hash-query";
+import { useHashParam } from "@metapages/hash-query/react-hooks";
 import AlibabaCloud from "@lobehub/icons/es/AlibabaCloud";
 import Anthropic from "@lobehub/icons/es/Anthropic";
 import BAAI from "@lobehub/icons/es/BAAI";
@@ -50,10 +52,12 @@ import {
   type ColumnOrderState,
   type ColumnSizingState,
   type FilterFn,
+  type OnChangeFn,
   type SortingFn,
   type SortingState,
   type VisibilityState,
   flexRender,
+  functionalUpdate,
   getCoreRowModel,
   getFacetedRowModel,
   getFacetedUniqueValues,
@@ -86,7 +90,7 @@ import {
   Video,
   Wrench,
 } from "lucide-react";
-import { type ComponentType, type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentType, type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   PUBLISHED_CATALOG_SEARCH_INDEX_URL,
@@ -105,7 +109,13 @@ import {
   reasoningControlLabels,
   type EvaluationVariant,
 } from "./evaluation.js";
+import { columnLabel, defaultColumnVisibility } from "./columns.js";
 import { searchStaticCatalog } from "./search.js";
+import {
+  decodeCatalogViewState,
+  encodeCatalogViewState,
+  type CatalogViewState,
+} from "./view-state.js";
 
 declare const __DBX_MODEL_CATALOG_WEB_SOURCE__: "auto" | "github";
 
@@ -161,53 +171,6 @@ const cloudMeta: Record<Cloud, { Icon: CatalogIcon; label: string }> = {
   aws: { Icon: Aws.Color, label: "AWS" },
   azure: { Icon: Azure.Color, label: "Azure" },
   gcp: { Icon: GoogleCloud.Color, label: "GCP" },
-};
-
-const columnLabels: Record<string, string> = {
-  aliases: "Aliases",
-  benchmarks: "Top benchmark",
-  categoryRank: "Best category rank",
-  capabilities: "Capabilities",
-  clouds: "Clouds",
-  context: "Context",
-  family: "Family",
-  inputModalities: "Input modalities",
-  inputLimit: "Input limit",
-  knowledgeCutoff: "Knowledge cutoff",
-  license: "License",
-  model: "Model",
-  openWeights: "Open weights",
-  outputModalities: "Output modalities",
-  outputLimit: "Output limit",
-  publisher: "Publisher",
-  reasoningControls: "Reasoning controls",
-  overallRank: "Best overall rank",
-  released: "Released",
-  servingModes: "Serving modes",
-  status: "Status",
-  tasks: "Tasks",
-  type: "Type",
-  updated: "Updated",
-  useCases: "Use cases",
-};
-
-const defaultColumnVisibility: VisibilityState = {
-  aliases: false,
-  categoryRank: false,
-  inputModalities: false,
-  inputLimit: false,
-  knowledgeCutoff: false,
-  license: false,
-  openWeights: false,
-  outputModalities: false,
-  outputLimit: false,
-  relevance: false,
-  released: false,
-  servingModes: false,
-  tasks: false,
-  type: false,
-  updated: false,
-  useCases: false,
 };
 
 interface TablePreferences {
@@ -778,14 +741,17 @@ function ReasoningDetails({ model }: { model: CatalogModel }) {
   );
 }
 
-function ModelDescription({ description }: { description: string }) {
+function ModelDescription({
+  description,
+  expanded,
+  onExpandedChange,
+}: {
+  description: string;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+}) {
   const textRef = useRef<HTMLSpanElement>(null);
-  const [expanded, setExpanded] = useState(false);
   const [canExpand, setCanExpand] = useState(false);
-
-  useEffect(() => {
-    setExpanded(false);
-  }, [description]);
 
   useEffect(() => {
     const text = textRef.current;
@@ -812,7 +778,7 @@ function ModelDescription({ description }: { description: string }) {
           className="model-description-toggle"
           type="button"
           aria-expanded={expanded}
-          onClick={() => setExpanded(current => !current)}
+          onClick={() => onExpandedChange(!expanded)}
         >
           {expanded ? "Show less" : "Read more"}
         </button>
@@ -821,8 +787,19 @@ function ModelDescription({ description }: { description: string }) {
   );
 }
 
-function ModelDetails({ model }: { model: CatalogRow }) {
-  const [view, setView] = useState<"details" | "json">("details");
+function ModelDetails({
+  model,
+  view,
+  descriptionExpanded,
+  onDescriptionExpandedChange,
+  onViewChange,
+}: {
+  model: CatalogRow;
+  view: "details" | "json";
+  descriptionExpanded: boolean;
+  onDescriptionExpandedChange: (expanded: boolean) => void;
+  onViewChange: (view: "details" | "json") => void;
+}) {
   const rankings = [...model.rankings].sort((left, right) => left.rank - right.rank);
   const benchmarks = [...model.benchmarks].sort((left, right) => left.rank - right.rank);
   const capabilities = activeCapabilities(model);
@@ -850,7 +827,7 @@ function ModelDetails({ model }: { model: CatalogRow }) {
         aria-label={viewLabel}
         aria-pressed={jsonView}
         title={viewLabel}
-        onClick={() => setView(current => current === "details" ? "json" : "details")}
+        onClick={() => onViewChange(view === "details" ? "json" : "details")}
       >
         <ViewIcon aria-hidden="true" />
       </Button>
@@ -864,7 +841,11 @@ function ModelDetails({ model }: { model: CatalogRow }) {
           <JsonBlock className="model-json" json={rawJson} />
         </div>
       ) : <div className="model-dialog-body">
-        <ModelDescription description={model.description || "No description is available."} />
+        <ModelDescription
+          description={model.description || "No description is available."}
+          expanded={descriptionExpanded}
+          onExpandedChange={onDescriptionExpandedChange}
+        />
         <dl className="detail-grid">
           {([
             ["status", "Status", <StatusMark status={model.status} />],
@@ -947,33 +928,83 @@ function ModelDetails({ model }: { model: CatalogRow }) {
 function App() {
   const catalogClient = useRef<CatalogClient | null>(null);
   const [initialTablePreferences] = useState(loadTablePreferences);
+  const [legacyModel] = useState(() => new URL(window.location.href).searchParams.get("model") ?? undefined);
+  const viewDefaults = useMemo(() => ({ legacyModel }), [legacyModel]);
+  const [encodedView, setEncodedView] = useHashParam("view");
+  const viewState = useMemo(
+    () => decodeCatalogViewState(encodedView, viewDefaults),
+    [encodedView, viewDefaults],
+  );
+  const viewStateRef = useRef(viewState);
+  viewStateRef.current = viewState;
+  const updateViewState = useCallback((
+    updater: CatalogViewState | ((current: CatalogViewState) => CatalogViewState),
+    options?: SetHashParamOpts,
+  ) => {
+    const next = functionalUpdate(updater, viewStateRef.current);
+    viewStateRef.current = next;
+    setEncodedView(encodeCatalogViewState(next), options);
+  }, [setEncodedView]);
+
+  useEffect(() => {
+    const canonical = encodeCatalogViewState(viewState);
+    if (encodedView !== canonical) setEncodedView(canonical);
+  }, [encodedView, setEncodedView, viewState]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("model")) return;
+    url.searchParams.delete("model");
+    window.history.replaceState(null, "", url);
+  }, []);
+
   const [catalog, setCatalog] = useState<CatalogPayload | null>(null);
   const [staticSearchIndex, setStaticSearchIndex] = useState<CatalogSearchIndexPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   const [searchResult, setSearchResult] = useState<{ query: string; records: CatalogModelRecord[] } | null>(null);
   const [searching, setSearching] = useState(false);
-  const [sorting, setSorting] = useState<SortingState>([{ id: "model", desc: false }]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
   const [columnDropTarget, setColumnDropTarget] = useState<ColumnDropTarget | null>(null);
-  const [selected, setSelected] = useState<CatalogRow | null>(null);
+  const {
+    search,
+    sorting,
+    columnFilters,
+  } = viewState;
+  const setSearch = useCallback((value: string) => {
+    updateViewState(current => ({ ...current, search: value }));
+  }, [updateViewState]);
+  const setSorting: OnChangeFn<SortingState> = useCallback(updater => {
+    updateViewState(current => ({
+      ...current,
+      sorting: functionalUpdate(updater, current.sorting),
+    }));
+  }, [updateViewState]);
+  const setColumnFilters: OnChangeFn<ColumnFiltersState> = useCallback(updater => {
+    updateViewState(current => ({
+      ...current,
+      columnFilters: functionalUpdate(updater, current.columnFilters),
+    }));
+  }, [updateViewState]);
 
-  const openModel = (model: CatalogRow) => {
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("model") !== model.id) {
-      url.searchParams.set("model", model.id);
-      window.history.pushState(null, "", url);
-    }
-    setSelected(model);
-  };
+  const openModel = useCallback((model: CatalogRow) => {
+    updateViewState(current => ({
+      ...current,
+      model: model.id,
+      modelView: "details",
+      descriptionExpanded: false,
+    }), { modifyHistory: true });
+  }, [updateViewState]);
 
-  const closeModel = () => {
-    const url = new URL(window.location.href);
-    url.searchParams.delete("model");
-    window.history.replaceState(null, "", url);
-    setSelected(null);
-  };
+  const closeModel = useCallback(() => {
+    updateViewState(current => {
+      const { model: _model, ...rest } = current;
+      return {
+        ...rest,
+        modelView: "details",
+        descriptionExpanded: false,
+      };
+    });
+  }, [updateViewState]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -1012,16 +1043,9 @@ function App() {
       searchRank: Number.MAX_SAFE_INTEGER,
     })),
   [catalog]);
-
-  useEffect(() => {
-    const syncSelection = () => {
-      const modelId = new URL(window.location.href).searchParams.get("model");
-      setSelected(modelId ? models.find(model => model.id === modelId) ?? null : null);
-    };
-    syncSelection();
-    window.addEventListener("popstate", syncSelection);
-    return () => window.removeEventListener("popstate", syncSelection);
-  }, [models]);
+  const selected = viewState.model
+    ? models.find(model => model.id === viewState.model) ?? null
+    : null;
 
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const hasSearch = Boolean(normalizedSearch);
@@ -1152,7 +1176,7 @@ function App() {
     { id: "updated", accessorKey: "last_updated", header: "Updated", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
     { id: "knowledgeCutoff", accessorKey: "knowledge_cutoff", header: "Knowledge cutoff", filterFn: textFilter, sortUndefined: "last", cell: info => formatDate(info.getValue<string>()) },
     { id: "aliases", accessorFn: row => row.aliases.join(", "), header: "Aliases", filterFn: textFilter, cell: ({ row }) => <Chips values={row.original.aliases} /> },
-  ], []);
+  ], [openModel]);
 
   const defaultColumnOrder = useMemo(
     () => columns.map(column => column.id).filter((id): id is string => Boolean(id)),
@@ -1286,9 +1310,12 @@ function App() {
   };
 
   const reset = () => {
-    setSearch("");
-    setColumnFilters([]);
-    setSorting([{ id: "model", desc: false }]);
+    updateViewState(current => ({
+      ...current,
+      search: "",
+      columnFilters: [],
+      sorting: [{ id: "model", desc: false }],
+    }));
     setColumnOrder(defaultColumnOrder);
     setColumnSizing({});
     setColumnVisibility(defaultColumnVisibility);
@@ -1348,7 +1375,7 @@ function App() {
                             <span className="column-toggle-indicator" aria-hidden="true">
                               {column.getIsVisible() ? "✓" : ""}
                             </span>
-                            <span className="column-toggle-label">{columnLabels[column.id] ?? column.id}</span>
+                            <span className="column-toggle-label">{columnLabel(column.id)}</span>
                           </button>
                         </div>
                       ))}
@@ -1366,7 +1393,7 @@ function App() {
                     <TableRow key={group.id}>
                       {group.headers.map(header => {
                         const sorted = header.column.getIsSorted();
-                        const label = columnLabels[header.column.id] ?? header.column.id;
+                        const label = columnLabel(header.column.id);
                         return (
                           <TableHead
                             className="resizable-header"
@@ -1450,7 +1477,19 @@ function App() {
         </main>
 
         <Dialog open={Boolean(selected)} onOpenChange={open => { if (!open) closeModel(); }}>
-          <DialogContent className="model-dialog">{selected && <ModelDetails model={selected} />}</DialogContent>
+          <DialogContent className="model-dialog">{selected && (
+            <ModelDetails
+              model={selected}
+              view={viewState.modelView}
+              descriptionExpanded={viewState.descriptionExpanded}
+              onDescriptionExpandedChange={descriptionExpanded => {
+                updateViewState(current => ({ ...current, descriptionExpanded }));
+              }}
+              onViewChange={modelView => {
+                updateViewState(current => ({ ...current, modelView }));
+              }}
+            />
+          )}</DialogContent>
         </Dialog>
       </div>
     </BrandProvider>

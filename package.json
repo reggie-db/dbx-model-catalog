@@ -11,6 +11,7 @@
     "@databricks/appkit-ui": "0.81.0",
     "@dbx-tools/ui": "^0.9.196",
     "@lobehub/icons": "^6.13.0",
+    "@metapages/hash-query": "0.11.0",
     "@tanstack/react-table": "^8.21.3",
     "@types/bun": "^1.4.4",
     "@types/node": "^24.10.0",
