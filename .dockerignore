@@ -18,6 +18,7 @@ dist
 **/dist
 packages/js/common
 packages/js/client/dist
+packages/js/web/catalog
 packages/js/web/dist
 uv.lock
 bun.lock

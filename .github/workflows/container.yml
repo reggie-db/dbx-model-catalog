@@ -1,0 +1,71 @@
+name: Publish container
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .dockerignore
+      - .github/workflows/container.yml
+      - Dockerfile
+      - docker/**
+      - package.json
+      - tsconfig.json
+      - packages/js/client/**
+      - packages/js/web/**
+      - "!packages/js/web/catalog/**"
+      - "!packages/js/web/catalog.json"
+      - "!packages/js/web/catalog.sqlite"
+      - "!packages/js/web/search-index.json"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: publish-container-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@3f80ee1c16a02cd28f71ca3d1e8d40ed58d59f13 # v4.4.1
+      - name: Log in to GHCR
+        uses: docker/login-action@b8f7d53e84999a10c28d844a1894d1859f7c0790 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@c299e40c654434d57b51614dafcd46f627cc351e # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=long,prefix=sha-
+      - name: Build and push image
+        uses: docker/build-push-action@251ca1e9109ea3cc1fca28b2952595f3f294438c # v7.4.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha,scope=model-catalog-ui
+          cache-to: type=gha,mode=max,scope=model-catalog-ui
+          provenance: mode=max
+          sbom: true
