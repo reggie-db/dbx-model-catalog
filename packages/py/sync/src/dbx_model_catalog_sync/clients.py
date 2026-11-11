@@ -9,7 +9,10 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
+from html.parser import HTMLParser
 from pathlib import Path
+from statistics import median
 from typing import Any, Generic, TypeVar
 from urllib.parse import quote, urljoin
 from urllib.request import Request, urlopen
@@ -54,6 +57,21 @@ DATABRICKS_PRICING_PAGE_DATA_URLS = {
 }
 DATABRICKS_PRICING_CARDS_URL = (
     "https://www.databricks.com/en-pricing-assets/data/pricing/cards.json"
+)
+DATABRICKS_RESPONSES_URL = (
+    "https://docs.databricks.com/aws/en/machine-learning/model-serving/query-openai-responses"
+)
+DATABRICKS_WEB_SEARCH_URL = (
+    "https://docs.databricks.com/aws/en/machine-learning/model-serving/web-search"
+)
+DATABRICKS_RATE_LIMITS_URL = (
+    "https://docs.databricks.com/aws/en/machine-learning/foundation-model-apis/limits"
+)
+DATABRICKS_RETIRED_MODELS_URL = (
+    "https://docs.databricks.com/aws/en/machine-learning/retired-models-policy"
+)
+MODEL_LATENCY_BENCHMARK_URL = (
+    "https://raw.githubusercontent.com/vicaroai/tokens-per-second/main/benchmarks/results/latest.json"
 )
 _PRICING_CLOUD_NAMES = {"AWS": "aws", "Azure": "azure", "GCP": "gcp"}
 
@@ -276,9 +294,30 @@ class DatabricksSyncClient(SyncClient[DatabricksCatalogData]):
         cards = json.loads(
             self.fetcher(DATABRICKS_PRICING_CARDS_URL, {"accept": "application/json"})
         )
+        responses_html = self.fetcher(
+            DATABRICKS_RESPONSES_URL, {"accept": "text/html"}
+        ).decode()
+        web_search_html = self.fetcher(
+            DATABRICKS_WEB_SEARCH_URL, {"accept": "text/html"}
+        ).decode()
+        rate_limits_html = self.fetcher(
+            DATABRICKS_RATE_LIMITS_URL, {"accept": "text/html"}
+        ).decode()
+        retired_models_html = self.fetcher(
+            DATABRICKS_RETIRED_MODELS_URL, {"accept": "text/html"}
+        ).decode()
+        latency_payload = json.loads(
+            self.fetcher(MODEL_LATENCY_BENCHMARK_URL, {"accept": "application/json"})
+        )
         return DatabricksCatalogData(
             pricing=parse_databricks_pricing_catalog(page_data, cards),
             cloudProviders=providers,
+            capabilities=parse_databricks_capabilities(
+                responses_html, web_search_html
+            ),
+            rateLimits=parse_databricks_rate_limits(rate_limits_html),
+            retiredModels=parse_databricks_retired_models(retired_models_html),
+            latency=parse_model_latency_benchmark(latency_payload),
         )
 
 
@@ -350,6 +389,142 @@ def parse_databricks_supported_models_page(html: str, source_url: str) -> Databr
         models=models,
         additionalResources=[],
     )
+
+
+def parse_databricks_capabilities(
+    responses_html: str, web_search_html: str
+) -> dict[str, list[str]]:
+    responses_soup = BeautifulSoup(responses_html, "html.parser")
+    response_models = _section_code_values(
+        responses_soup, "databricks-hosted-foundation-models"
+    )
+    if not response_models:
+        raise ValueError("Databricks documentation contained no Responses models")
+    input_text = " ".join(
+        _text(element)
+        for element in _section_elements(responses_soup, "supported-input-types")
+    ).casefold()
+    limitations = {
+        _text(code)
+        for element in _section_elements(responses_soup, "limitations")
+        for code in element.find_all("code")
+    }
+    web_search_soup = BeautifulSoup(web_search_html, "html.parser")
+    web_search_models = _section_code_values(web_search_soup, "supported-models")
+    if not web_search_models:
+        raise ValueError("Databricks documentation contained no native web-search models")
+    return {
+        "responses": response_models,
+        "image_input": response_models if {"text", "image"} <= set(re.findall(r"[a-z]+", input_text)) else [],
+        "apply_patch": response_models if "apply_patch" in limitations else [],
+        "web_search": web_search_models,
+    }
+
+
+def parse_databricks_rate_limits(html: str) -> dict[str, dict[str, int | None]]:
+    result: dict[str, dict[str, int | None]] = {}
+    for rows in _html_tables(html):
+        if not rows:
+            continue
+        headers = [value.casefold() for value in rows[0]]
+        if not headers or not any("itpm" in value for value in headers):
+            continue
+        if not any("otpm" in value for value in headers):
+            continue
+        input_index = next(i for i, value in enumerate(headers) if "itpm" in value)
+        output_index = next(i for i, value in enumerate(headers) if "otpm" in value)
+        queries_index = next(
+            (i for i, value in enumerate(headers) if "rph" in value or "qph" in value),
+            None,
+        )
+        for row in rows[1:]:
+            if not row:
+                continue
+            key = _public_model_key(row[0])
+            if not key:
+                continue
+            result[key] = {
+                "input_tokens_per_minute": _documented_integer(row[input_index] if input_index < len(row) else ""),
+                "output_tokens_per_minute": _documented_integer(row[output_index] if output_index < len(row) else ""),
+                "queries_per_hour": _documented_integer(row[queries_index] if queries_index is not None and queries_index < len(row) else ""),
+            }
+    if not result:
+        raise ValueError("Databricks documentation contained no model rate limits")
+    return result
+
+
+def parse_databricks_retired_models(html: str) -> list[dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for rows in _html_tables(html):
+        if not rows:
+            continue
+        headers = [value.casefold() for value in rows[0]]
+        if not headers or headers[0] not in {"open model", "partner model"}:
+            continue
+        for row in rows[1:]:
+            if len(row) < 2:
+                continue
+            replacement = row[2].strip() if len(row) > 2 else None
+            schedules = _retirement_schedules(row[1])
+            for name in (part.strip() for part in row[0].split("/")):
+                if not name:
+                    continue
+                key = _public_model_key(name)
+                if key:
+                    result[key] = {
+                        "name": name,
+                        "schedules": schedules,
+                        "replacement_name": replacement or None,
+                    }
+    if not result:
+        raise ValueError("Databricks documentation contained no retired models")
+    return list(result.values())
+
+
+def parse_model_latency_benchmark(payload: object) -> dict[str, dict[str, Any]]:
+    if not isinstance(payload, dict):
+        raise ValueError("Latency benchmark payload must be an object")
+    generated_at = payload.get("generated_at")
+    completion_tokens = payload.get("max_tokens")
+    results = payload.get("results")
+    if not isinstance(generated_at, str) or not isinstance(completion_tokens, int) or not isinstance(results, list):
+        raise ValueError("Latency benchmark payload is missing required fields")
+    groups: dict[str, dict[str, Any]] = {}
+    for row in results:
+        if not isinstance(row, dict) or row.get("ok") is not True:
+            continue
+        model = row.get("model")
+        throughput = row.get("tokens_per_second")
+        ttft = row.get("ttft_millis")
+        runs = row.get("successful_runs")
+        if not isinstance(model, str) or not isinstance(throughput, (int, float)) or throughput <= 0:
+            continue
+        if not isinstance(ttft, (int, float)) or not isinstance(runs, int) or runs <= 0:
+            continue
+        key = _public_model_key(model.rsplit("/", 1)[-1])
+        if not key:
+            continue
+        group = groups.setdefault(key, {"ttft": [], "throughput": [], "response": [], "runs": 0})
+        group["ttft"].append(float(ttft))
+        group["throughput"].append(float(throughput))
+        group["response"].append(float(ttft) + completion_tokens / float(throughput) * 1000)
+        group["runs"] += runs
+    models = {
+        key: {
+            "score": round(median(group["response"])),
+            "measurements": {
+                "time_to_first_token_ms": round(median(group["ttft"]), 3),
+                "output_tokens_per_second": round(median(group["throughput"]), 3),
+                "successful_run_count": group["runs"],
+                "completion_token_count": completion_tokens,
+                "measured_at": generated_at,
+            },
+        }
+        for key, group in groups.items()
+    }
+    if not models:
+        raise ValueError("Latency benchmark contained no successful model runs")
+    return models
 
 
 def parse_databricks_pricing_catalog(
@@ -674,6 +849,137 @@ def _text(tag: Tag | None) -> str:
     value = re.sub(r"\s+([,.;:!?\)\]\}])", r"\1", value)
     value = re.sub(r"([\(\[\{])\s+", r"\1", value)
     return value.strip()
+
+
+def _section_elements(soup: BeautifulSoup, heading_id: str) -> list[Tag]:
+    heading = soup.find(id=heading_id)
+    if not isinstance(heading, Tag) or not re.fullmatch(r"h[1-6]", heading.name or ""):
+        raise ValueError(f"Databricks documentation is missing section {heading_id}")
+    level = int(heading.name[1])
+    elements: list[Tag] = []
+    for sibling in heading.find_next_siblings():
+        if re.fullmatch(r"h[1-6]", sibling.name or "") and int(sibling.name[1]) <= level:
+            break
+        elements.append(sibling)
+    return elements
+
+
+def _section_code_values(soup: BeautifulSoup, heading_id: str) -> list[str]:
+    values = []
+    for element in _section_elements(soup, heading_id):
+        if element.name == "code":
+            values.append(_text(element))
+        values.extend(_text(code) for code in element.find_all("code"))
+    return list(dict.fromkeys(value for value in values if _public_model_key(value)))
+
+
+def _public_model_key(value: str) -> str:
+    normalized = value.strip().rstrip("*").strip()
+    normalized = re.sub(r"\s*\((?:public\s+)?(?:preview|beta|legacy)\)\s*$", "", normalized, flags=re.I)
+    normalized = re.sub(r"^system\.ai[.-]", "", normalized, flags=re.I)
+    normalized = re.sub(r"^databricks-", "", normalized, flags=re.I)
+    normalized = re.sub(r"([a-z])([0-9])", r"\1-\2", normalized.casefold())
+    normalized = re.sub(r"([0-9])([a-z])", r"\1-\2", normalized)
+    return re.sub(r"[^a-z0-9]+", "-", normalized).strip("-")
+
+
+def _documented_integer(value: str) -> int | None:
+    normalized = value.strip().replace(",", "")
+    return int(normalized) if normalized.isdigit() else None
+
+
+def _retirement_schedules(value: str) -> list[dict[str, Any]]:
+    matches = list(
+        re.finditer(
+            r"(?P<offering>Pay-per-token|Provisioned throughput):\s*"
+            r"(?P<date>[A-Z][a-z]+\s+\d{1,2},\s+\d{4})",
+            value,
+        )
+    )
+    schedules: dict[str, list[str]] = {}
+    for match in matches:
+        parsed = datetime.strptime(match.group("date"), "%B %d, %Y").date().isoformat()
+        offering = (
+            "pay_per_token"
+            if match.group("offering") == "Pay-per-token"
+            else "provisioned_throughput"
+        )
+        schedules.setdefault(offering, []).append(parsed)
+    return [
+        {"offering": offering, "dates": list(dict.fromkeys(dates))}
+        for offering, dates in schedules.items()
+    ]
+
+
+class _TableParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.tables: list[list[list[str]]] = []
+        self._depth = 0
+        self._rows: list[list[str]] | None = None
+        self._row: list[str] | None = None
+        self._cell: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "table":
+            self._depth += 1
+            if self._depth == 1:
+                self._rows = []
+            return
+        if self._depth != 1:
+            return
+        if tag in {"thead", "tbody", "tr"}:
+            if tag == "tr":
+                self._finish_row()
+                self._row = []
+            return
+        if tag in {"th", "td"}:
+            if self._row is None:
+                self._row = []
+            self._finish_cell()
+            self._cell = []
+
+    def handle_endtag(self, tag: str) -> None:
+        if self._depth == 1:
+            if tag in {"th", "td"}:
+                self._finish_cell()
+            elif tag == "tr":
+                self._finish_row()
+        if tag == "table" and self._depth:
+            if self._depth == 1:
+                self._finish_row()
+                if self._rows:
+                    self.tables.append(self._rows)
+                self._rows = None
+            self._depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._depth == 1 and self._cell is not None:
+            self._cell.append(data)
+
+    def _finish_cell(self) -> None:
+        if self._cell is None:
+            return
+        if self._row is None:
+            self._row = []
+        self._row.append(" ".join("".join(self._cell).split()))
+        self._cell = None
+
+    def _finish_row(self) -> None:
+        self._finish_cell()
+        if self._row and self._rows is not None:
+            self._rows.append(self._row)
+        self._row = None
+
+
+def _html_tables(html: str) -> list[list[list[str]]]:
+    parser = _TableParser()
+    parser.feed(html)
+    unique: dict[tuple[tuple[str, ...], ...], list[list[str]]] = {}
+    for rows in parser.tables:
+        key = tuple(tuple(cell for cell in row) for row in rows)
+        unique.setdefault(key, rows)
+    return list(unique.values())
 
 
 def _join_paragraphs(values: list[str]) -> str:

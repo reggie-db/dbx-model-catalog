@@ -5,8 +5,10 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 from .models import Status, Type
 
 CapabilityName = Literal[
+    "apply-patch",
     "attachments",
     "reasoning",
+    "responses",
     "structured-output",
     "tools",
     "web-search",

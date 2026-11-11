@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, confloat, conint, constr
 
 
-MODEL_CATALOG_SCHEMA_VERSION = 15
+MODEL_CATALOG_SCHEMA_VERSION = 16
 ModelCatalogSchemaVersion = Literal[MODEL_CATALOG_SCHEMA_VERSION]
 
 
@@ -255,6 +255,14 @@ class Capabilities(BaseModel):
     """
     Whether reasoning content can be interleaved with the answer.
     """
+    responses: bool
+    """
+    Whether Databricks documents OpenAI Responses API support.
+    """
+    apply_patch: bool
+    """
+    Whether Databricks documents support for the apply_patch tool.
+    """
     web_search: bool
     """
     Whether Databricks documents native web search support.
@@ -285,6 +293,55 @@ class Limits(BaseModel):
     """
     Maximum generated output length in tokens.
     """
+
+
+class RateLimits(BaseModel):
+    """
+    Published pay-per-token limits for one model.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    input_tokens_per_minute: conint(ge=0, le=9007199254740991) | None
+    """
+    Published input tokens per minute, or null when unpublished.
+    """
+    output_tokens_per_minute: conint(ge=0, le=9007199254740991) | None
+    """
+    Published output tokens per minute, or null when unpublished.
+    """
+    queries_per_hour: conint(ge=0, le=9007199254740991) | None
+    """
+    Published requests or queries per hour, or null when unpublished.
+    """
+
+
+class LatencyMeasurements(BaseModel):
+    """
+    Public benchmark measurements underlying one latency score.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    time_to_first_token_ms: confloat(ge=0.0)
+    output_tokens_per_second: confloat(gt=0.0)
+    successful_run_count: conint(gt=0, le=9007199254740991)
+    completion_token_count: conint(gt=0, le=9007199254740991)
+    measured_at: AwareDatetime
+
+
+class Latency(BaseModel):
+    """
+    Normalized response-time score and public benchmark measurements.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    score: confloat(gt=0.0)
+    measurements: LatencyMeasurements
 
 
 class Status1(StrEnum):
@@ -776,6 +833,14 @@ class CatalogModel(BaseModel):
     limits: Limits | None = None
     """
     Documented token limits.
+    """
+    rate_limits: RateLimits | None = None
+    """
+    Published Databricks pay-per-token rate limits.
+    """
+    latency: Latency | None = None
+    """
+    Public benchmark latency metadata when matched.
     """
     tasks: list[str]
     """

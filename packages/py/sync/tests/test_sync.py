@@ -16,9 +16,13 @@ from dbx_model_catalog_sync import (
     SyncResult,
     build_model_catalog,
     normalize_model_identity,
+    parse_databricks_capabilities,
     parse_databricks_pricing_catalog,
+    parse_databricks_rate_limits,
+    parse_databricks_retired_models,
     parse_databricks_supported_models_page,
     parse_flexible_date,
+    parse_model_latency_benchmark,
     stringify_json,
     sync_client_cache_path,
     serialize_sources,
@@ -108,6 +112,70 @@ def test_supported_models_parser_normalizes_notices() -> None:
             }
         ],
     }
+
+
+def test_public_metadata_parsers_cover_dbx_tools_fields() -> None:
+    capabilities = parse_databricks_capabilities(
+        """
+        <h2 id="databricks-hosted-foundation-models">Models</h2>
+        <p><code>databricks-gpt-5-4</code></p>
+        <h2 id="supported-input-types">Inputs</h2><p>Text and image</p>
+        <h2 id="limitations">Limitations</h2><p><code>apply_patch</code></p>
+        """,
+        """
+        <h2 id="supported-models">Models</h2>
+        <h3>OpenAI</h3><p><code>system.ai.gpt-5-4</code></p>
+        """,
+    )
+    assert capabilities == {
+        "responses": ["databricks-gpt-5-4"],
+        "image_input": ["databricks-gpt-5-4"],
+        "apply_patch": ["databricks-gpt-5-4"],
+        "web_search": ["system.ai.gpt-5-4"],
+    }
+
+    limits = parse_databricks_rate_limits(
+        """
+        <table><thead><tr><th>Large language models<th>ITPM limit<th>OTPM limit<th>RPH limit
+        <tbody><tr><td>GPT-5.4<td>1,000,000<td>100,000<td>360,000</table>
+        """
+    )
+    assert limits["gpt-5-4"] == {
+        "input_tokens_per_minute": 1_000_000,
+        "output_tokens_per_minute": 100_000,
+        "queries_per_hour": 360_000,
+    }
+
+    retired = parse_databricks_retired_models(
+        """
+        <table><thead><tr><th>Partner model<th>Retirement date<th>Recommended replacement model
+        <tbody><tr><td>GPT-5.1<td>Pay-per-token: July 16, 2026<td>GPT-5.4</table>
+        """
+    )
+    assert retired == [
+        {
+            "name": "GPT-5.1",
+            "schedules": [{"offering": "pay_per_token", "dates": ["2026-07-16"]}],
+            "replacement_name": "GPT-5.4",
+        }
+    ]
+
+    latency = parse_model_latency_benchmark(
+        {
+            "generated_at": "2026-08-03T07:12:50Z",
+            "max_tokens": 512,
+            "results": [
+                {
+                    "model": "openai/gpt-5.4",
+                    "ok": True,
+                    "tokens_per_second": 100,
+                    "ttft_millis": 250,
+                    "successful_runs": 5,
+                }
+            ],
+        }
+    )
+    assert latency["gpt-5-4"]["score"] == 5_370
 
 
 def test_models_dev_matching_prefers_databricks_then_owning_publisher() -> None:

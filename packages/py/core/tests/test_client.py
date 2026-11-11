@@ -30,7 +30,7 @@ def model(name: str, status: str, tasks: list[str]) -> dict[str, object]:
         "type": "chat",
         "status": status,
         "modalities": {"input": ["text"], "output": ["text"]},
-        "capabilities": {"web_search": False},
+        "capabilities": {"responses": False, "apply_patch": False, "web_search": False},
         "tasks": tasks,
         "use_cases": [],
         "availability": {},
@@ -49,6 +49,8 @@ def catalog() -> dict[str, object]:
     active.update(
         {
             "capabilities": {
+                "responses": False,
+                "apply_patch": False,
                 "web_search": False,
                 "reasoning": {"supported": True, "effort": ["high"]},
             },
@@ -94,7 +96,7 @@ def catalog() -> dict[str, object]:
     llama = model("Llama Active", "active", ["chat"])
     llama["limits"] = {"context": 8_192}
     return {
-        "schema_version": 15,
+        "schema_version": 16,
         "updated_at": "2026-10-31T12:00:00.000Z",
         "models": {
             "databricks-gpt-active": active,
@@ -113,15 +115,15 @@ def test_reads_brotli_and_injected_fetch(catalog: dict[str, object]) -> None:
         "https://example.com/catalog.json.br", fetch=lambda _: payload
     )
 
-    assert client.schema_version == 15
+    assert client.schema_version == 16
     assert client.size == 3
     assert client.get("databricks-gpt-active").name == "GPT Active"
     assert fetched.get("databricks-llama").name == "Llama Active"
 
 
 def test_published_catalog_url_targets_compatible_schema() -> None:
-    assert PUBLISHED_CATALOG_SCHEMA_VERSION == MODEL_CATALOG_SCHEMA_VERSION == 15
-    assert PUBLISHED_CATALOG_URL.endswith("/catalog/v15/catalog.json")
+    assert PUBLISHED_CATALOG_SCHEMA_VERSION == MODEL_CATALOG_SCHEMA_VERSION == 16
+    assert PUBLISHED_CATALOG_URL.endswith("/catalog/v16/catalog.json")
 
 
 def test_accepts_injected_decoder(catalog: dict[str, object]) -> None:
@@ -222,7 +224,7 @@ def test_preserves_previous_schema_lanes(
     version_index = json.loads((tmp_path / "catalog" / "index.json").read_text())
     assert [version["schema_version"] for version in version_index["versions"]] == [
         14,
-        15,
+        16,
     ]
     assert (previous / "catalog.json").is_file()
 

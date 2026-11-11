@@ -8,12 +8,12 @@ import {
 } from '../src/index.js';
 
 test('exports schema-scoped catalog URLs', () => {
-  expect(PUBLISHED_CATALOG_SCHEMA_VERSION).toBe(15);
-  expect(PUBLISHED_CATALOG_URL).toEndWith('/catalog/v15/catalog.json');
+  expect(PUBLISHED_CATALOG_SCHEMA_VERSION).toBe(16);
+  expect(PUBLISHED_CATALOG_URL).toEndWith('/catalog/v16/catalog.json');
   expect(PUBLISHED_CATALOG_INDEX_URL).toEndWith('/catalog/index.json');
 });
 
-test('uses local IPC by default and filters the catalog', async () => {
+test('uses local files without starting Python and filters the catalog', async () => {
   const previousCatalogPath = process.env.DBX_MODEL_CATALOG_PATH;
   process.env.DBX_MODEL_CATALOG_PATH = fileURLToPath(
     new URL('../../web/catalog.json', import.meta.url),
@@ -23,8 +23,7 @@ test('uses local IPC by default and filters the catalog', async () => {
     const models = await session.client.list({ query: 'gpt', limit: 2 });
     const searchIndex = await session.client.searchIndex();
 
-    expect(session.mode).toBe('ipc');
-    expect(session.pid).toBeNumber();
+    expect(session.mode).toBe('file');
     expect(models.length).toBeGreaterThan(0);
     expect(models[0]?.id).toBe('databricks-gpt-6-1-sol');
     expect(models.every(model => `${model.id} ${model.name}`.toLowerCase().includes('gpt'))).toBe(true);
@@ -34,3 +33,9 @@ test('uses local IPC by default and filters the catalog', async () => {
     else process.env.DBX_MODEL_CATALOG_PATH = previousCatalogPath;
   }
 }, 30_000);
+
+test('rejects WebSocket URLs from the standalone client', async () => {
+  expect(connectModelCatalog('ws://127.0.0.1:8787')).rejects.toThrow(
+    '@dbx-tools/dbx-model-catalog/pynect',
+  );
+});

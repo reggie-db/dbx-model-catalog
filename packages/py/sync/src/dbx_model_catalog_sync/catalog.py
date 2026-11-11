@@ -15,6 +15,10 @@ from dbx_model_catalog.models import (
     ModelCatalog,
 )
 from .clients import (
+    DATABRICKS_RATE_LIMITS_URL,
+    DATABRICKS_RESPONSES_URL,
+    DATABRICKS_RETIRED_MODELS_URL,
+    DATABRICKS_WEB_SEARCH_URL,
     DatabricksSyncClient,
     LMArenaSyncClient,
     LiveBenchSyncClient,
@@ -39,6 +43,7 @@ from .models import (
 )
 
 LM_ARENA_LEADERBOARD_URL = "https://arena.ai/leaderboard"
+MODEL_LATENCY_BENCHMARK_SOURCE_URL = "https://github.com/vicaroai/tokens-per-second"
 REASONING_EFFORTS = {effort.value for effort in EffortEnum}
 
 EVALUATION_SUFFIXES = {
@@ -118,6 +123,12 @@ class CatalogSyncSources:
     lm_arena: SyncResult[LMArenaCatalogData]
     live_bench: SyncResult[LiveBenchCatalogData]
     databricks: SyncResult[DatabricksCatalogData]
+
+
+@dataclass(frozen=True)
+class ModelsDevMatchIndex:
+    records: list[tuple[ModelsDevProvider, ModelsDevModel]]
+    exact: dict[str, list[tuple[ModelsDevProvider, ModelsDevModel]]]
 
 
 class CatalogSync:
@@ -210,7 +221,7 @@ def _clear_source_cache(client: object) -> None:
 
 
 def build_model_catalog(sources: CatalogSyncSources) -> ModelCatalog:
-    models_dev = _models_dev_records(sources.models_dev.data)
+    models_dev = _models_dev_match_index(_models_dev_records(sources.models_dev.data))
     lm_arena_results = _lm_arena_results(sources.lm_arena.data)
     live_bench_results = _live_bench_results(sources.live_bench.data)
     models: dict[str, dict[str, Any]] = {}
@@ -232,10 +243,13 @@ def build_model_catalog(sources: CatalogSyncSources) -> ModelCatalog:
                 lm_arena_results,
                 live_bench_results,
                 documentation_url,
+                sources.databricks.data,
             )
             _add_availability(model, cloud, documented, documentation_url)
             models[model_id] = model
     _add_pricing(models, sources.databricks.data.pricing)
+    _add_retired_models(models, sources.databricks.data.retired_models)
+    _link_retirement_replacements(models)
     _remove_ambiguous_aliases(models)
     updated_at = max(
         sources.models_dev.fetched_at,
@@ -485,17 +499,37 @@ def _models_dev_records(data: ModelsDevData) -> list[tuple[ModelsDevProvider, Mo
     return [(provider, model) for provider in data.values() for model in provider.models.values()]
 
 
+def _models_dev_match_index(
+    records: list[tuple[ModelsDevProvider, ModelsDevModel]],
+) -> ModelsDevMatchIndex:
+    exact: dict[str, list[tuple[ModelsDevProvider, ModelsDevModel]]] = {}
+    for provider, model in records:
+        values = [model.id, model.name]
+        if model.canonical_model_id:
+            values.append(model.canonical_model_id.split("/")[-1])
+        for value in values:
+            exact.setdefault(normalize_model_identity(value), []).append((provider, model))
+    return ModelsDevMatchIndex(records=records, exact=exact)
+
+
 def _best_models_dev_match(
     documented: DatabricksSupportedModel,
-    records: list[tuple[ModelsDevProvider, ModelsDevModel]],
+    records: list[tuple[ModelsDevProvider, ModelsDevModel]] | ModelsDevMatchIndex,
 ) -> tuple[ModelsDevProvider, ModelsDevModel] | None:
     identities = {
         normalize_model_identity(value)
         for value in (documented.name, documented.endpoint_name, documented.service_name)
         if value
     }
+    index = records if isinstance(records, ModelsDevMatchIndex) else _models_dev_match_index(records)
+    exact_records = {
+        (provider.id, model.id): (provider, model)
+        for identity in identities
+        for provider, model in index.exact.get(identity, ())
+    }
+    candidates = list(exact_records.values()) or index.records
     matches: list[tuple[int, int, ModelsDevProvider, ModelsDevModel]] = []
-    for provider, model in records:
+    for provider, model in candidates:
         direct_candidates = {
             normalize_model_identity(model.id),
             normalize_model_identity(model.name),
@@ -573,10 +607,11 @@ def _catalog_model(
     lm_arena_results: dict[str, list[tuple[str, dict[str, Any]]]],
     live_bench_results: dict[str, list[dict[str, Any]]],
     documentation_url: str,
+    public_data: DatabricksCatalogData,
 ) -> dict[str, Any]:
     provider, source = match if match else (None, None)
     aliases = [value for value in (documented.service_name, source.canonical_model_id if source else None, source.id if source else None) if value and value != model_id]
-    model_type = (source.type if source else None) or "chat"
+    model_type = _model_type(documented, source)
     status = "deprecated" if documented.deprecated else _status(documented.status or (source.status if source else None))
     modalities = {
         "input": [
@@ -589,17 +624,36 @@ def _catalog_model(
             _modality(value) for value in (source.modalities.output if source else ["text"])
         ],
     }
-    capabilities: dict[str, Any] = {"web_search": documented.web_search}
+    if model_type == "embedding":
+        modalities["output"] = ["embedding"]
+    identities = _catalog_identities(model_id, documented, source)
+    responses = _matches_public_set(identities, public_data.capabilities.get("responses", ()))
+    apply_patch = _matches_public_set(identities, public_data.capabilities.get("apply_patch", ()))
+    image_input = _matches_public_set(identities, public_data.capabilities.get("image_input", ()))
+    if image_input and "image" not in modalities["input"]:
+        modalities["input"].append("image")
+    web_search = documented.web_search or _matches_public_set(
+        identities,
+        public_data.capabilities.get("web_search", ()),
+        inherit=True,
+    )
+    capabilities: dict[str, Any] = {
+        "responses": responses,
+        "apply_patch": apply_patch,
+        "web_search": web_search,
+    }
     if source:
         capabilities.update(
-            attachments=source.attachment,
+            attachments=source.attachment or image_input,
             tools=source.tool_call,
             structured_output=source.structured_output,
+            temperature=source.temperature,
         )
+    elif image_input:
+        capabilities["attachments"] = True
     reasoning = _reasoning_capability(documented, source)
     if reasoning:
         capabilities["reasoning"] = reasoning
-    identities = _catalog_identities(model_id, documented, source)
     ranking_matches = _matched_rankings(identities, lm_arena_results)
     benchmark_matches = _matched_benchmarks(identities, live_bench_results)
     documentation_source = _source_link(
@@ -680,6 +734,12 @@ def _catalog_model(
             documentation_source
             if documented.web_search or documented.reasoning
             else None,
+            _source_link("Databricks Responses documentation", DATABRICKS_RESPONSES_URL)
+            if responses or apply_patch or image_input
+            else None,
+            _source_link("Databricks web-search documentation", DATABRICKS_WEB_SEARCH_URL)
+            if web_search
+            else None,
             models_dev_source if source else None,
         ],
     )
@@ -698,6 +758,18 @@ def _catalog_model(
         ("knowledge_cutoff",),
         [models_dev_source if source and source.knowledge else None],
     )
+    rate_limits = _matched_public_value(identities, public_data.rate_limits)
+    latency = _matched_public_value(identities, public_data.latency, inherit=True)
+    _add_field_sources(
+        field_sources,
+        ("rate_limits",),
+        [_source_link("Databricks rate-limit documentation", DATABRICKS_RATE_LIMITS_URL) if rate_limits else None],
+    )
+    _add_field_sources(
+        field_sources,
+        ("latency",),
+        [_source_link("vicaroai/tokens-per-second", MODEL_LATENCY_BENCHMARK_SOURCE_URL) if latency else None],
+    )
     model: dict[str, Any] = {
         "name": documented.name,
         "description": documented.description or (source.description if source else documented.name),
@@ -713,6 +785,8 @@ def _catalog_model(
         "modalities": modalities,
         "capabilities": capabilities,
         "limits": source.limit.model_dump(exclude_none=True) if source else None,
+        "rate_limits": rate_limits,
+        "latency": latency,
         "tasks": documented.task_types,
         "use_cases": _use_cases(
             documented,
@@ -773,6 +847,203 @@ def _catalog_identities(
             if identity.startswith(f"{prefix}-")
         )
     return identities
+
+
+def _model_type(
+    documented: DatabricksSupportedModel,
+    source: ModelsDevModel | None,
+) -> str:
+    identity = normalize_model_identity(
+        documented.endpoint_name or documented.service_name or documented.name
+    )
+    if any(token in identity.split("-") for token in ("bge", "gte", "embedding")):
+        return "embedding"
+    return (source.type if source else None) or "chat"
+
+
+def _matches_public_set(
+    identities: set[str],
+    values: Any,
+    *,
+    inherit: bool = False,
+) -> bool:
+    documented = {normalize_model_identity(str(value)) for value in values}
+    if identities & documented:
+        return True
+    if not inherit:
+        return False
+    for identity in identities:
+        family, version, _ = _model_version(identity)
+        if not family or not version or "gpt-oss" in identity:
+            continue
+        floors = [
+            candidate_version
+            for candidate in documented
+            if (candidate_family := _model_version(candidate)[0]) == family
+            and (candidate_version := _model_version(candidate)[1])
+            and "gpt-oss" not in candidate
+        ]
+        if floors and version >= min(floors):
+            return True
+    return False
+
+
+def _matched_public_value(
+    identities: set[str],
+    values: dict[str, dict[str, Any]],
+    *,
+    inherit: bool = False,
+) -> dict[str, Any] | None:
+    normalized = {normalize_model_identity(key): value for key, value in values.items()}
+    for identity in identities:
+        if identity in normalized:
+            return normalized[identity]
+    if not inherit:
+        return None
+    matches: list[tuple[tuple[int, ...], dict[str, Any]]] = []
+    for identity in identities:
+        family, version, variant = _model_version(identity)
+        if not family or not version:
+            continue
+        for candidate, value in normalized.items():
+            candidate_family, candidate_version, candidate_variant = _model_version(candidate)
+            if candidate_family != family or candidate_variant != variant:
+                continue
+            if candidate_version <= version:
+                matches.append((candidate_version, value))
+    return max(matches, key=lambda item: item[0])[1] if matches else None
+
+
+def _model_version(value: str) -> tuple[str | None, tuple[int, ...], tuple[str, ...]]:
+    tokens = normalize_model_identity(value).split("-")
+    family = next(
+        (
+            token
+            for token in tokens
+            if token
+            in {
+                "gpt",
+                "claude",
+                "gemini",
+                "gemma",
+                "grok",
+                "llama",
+                "deepseek",
+                "qwen",
+                "glm",
+                "kimi",
+                "bge",
+                "gte",
+            }
+        ),
+        None,
+    )
+    if family is None:
+        return None, (), ()
+    start = tokens.index(family)
+    tail = tokens[start + 1 :]
+    version = tuple(int(token) for token in tail if token.isdigit())
+    variant = tuple(token for token in tail if not token.isdigit() and token not in {"preview", "legacy"})
+    return family, version, variant
+
+
+def _add_retired_models(
+    models: dict[str, dict[str, Any]],
+    retired_models: list[dict[str, Any]],
+) -> None:
+    for retired in retired_models:
+        name = str(retired.get("name") or "").strip()
+        if not name:
+            continue
+        schedules = list(retired.get("schedules") or [])
+        replacement_name = str(retired.get("replacement_name") or "").strip() or None
+        existing_id = _find_model_id(models, name)
+        model_id = existing_id or f"databricks-{normalize_model_identity(name)}"
+        retirement = {
+            "schedules": schedules,
+            **({"replacement_name": replacement_name} if replacement_name else {}),
+        }
+        status = _retirement_status(schedules)
+        source = _source_link("Databricks retirement documentation", DATABRICKS_RETIRED_MODELS_URL)
+        if existing_id:
+            model = models[existing_id]
+            model["retirement"] = retirement
+            if status == "retired" or model.get("status") == "active":
+                model["status"] = status
+            _add_field_sources(model["sources"], ("retirement", "status"), [source])
+            continue
+        model_type = "embedding" if any(token in normalize_model_identity(name).split("-") for token in ("bge", "gte", "embedding")) else "chat"
+        models[model_id] = {
+            "name": name,
+            "description": f"Retired Databricks model listed in the public model retirement policy.",
+            "aliases": [],
+            "type": model_type,
+            "family": _model_family_from_name(name),
+            "status": status,
+            "retirement": retirement,
+            "modalities": {
+                "input": ["text"],
+                "output": ["embedding" if model_type == "embedding" else "text"],
+            },
+            "capabilities": {
+                "responses": False,
+                "apply_patch": False,
+                "web_search": False,
+            },
+            "tasks": [],
+            "use_cases": ["embeddings", "retrieval"] if model_type == "embedding" else ["chat"],
+            "availability": {},
+            "price": {},
+            "average_price": {},
+            "sources": {
+                "name": [source] if source else [],
+                "description": [source] if source else [],
+                "status": [source] if source else [],
+                "retirement": [source] if source else [],
+            },
+            "notices": [],
+            "rankings": [],
+            "benchmarks": [],
+        }
+
+
+def _find_model_id(models: dict[str, dict[str, Any]], value: str) -> str | None:
+    target = normalize_model_identity(value)
+    matches = [
+        model_id
+        for model_id, model in models.items()
+        if target
+        in {
+            normalize_model_identity(str(identity))
+            for identity in (model_id, model.get("name"), *model.get("aliases", []))
+            if identity
+        }
+    ]
+    return sorted(matches)[0] if matches else None
+
+
+def _retirement_status(schedules: list[dict[str, Any]]) -> str:
+    dates = [
+        date.fromisoformat(str(value))
+        for schedule in schedules
+        for value in schedule.get("dates", [])
+    ]
+    return "retired" if dates and max(dates) <= date.today() else "deprecated"
+
+
+def _link_retirement_replacements(models: dict[str, dict[str, Any]]) -> None:
+    for model in models.values():
+        retirement = model.get("retirement")
+        if not retirement or not retirement.get("replacement_name"):
+            continue
+        replacement = _find_model_id(models, retirement["replacement_name"])
+        if replacement:
+            retirement["replacement"] = replacement
+
+
+def _model_family_from_name(value: str) -> str | None:
+    family, _, _ = _model_version(value)
+    return family
 
 
 def _evaluation_identities(value: str) -> set[str]:

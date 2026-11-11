@@ -10,7 +10,7 @@
   "dependencies": {
     "@dbx-tools/dbx-model-catalog": "workspace:*",
     "@metapages/hash-query": "catalog:",
-    "fuse.js": "catalog:",
+    "pynect": "catalog:",
     "zod": "catalog:"
   }
 }

@@ -51,6 +51,7 @@ class ModelsDevModel(LooseModel):
     cost: dict[str, Any] | None = None
     reasoning_options: list[dict[str, Any]] | None = None
     structured_output: bool | None = None
+    temperature: bool | None = None
     knowledge: datetime | None = None
 
     @field_validator("release_date", "last_updated", "knowledge", mode="before")
@@ -241,3 +242,11 @@ class DatabricksPricingCatalog(LooseModel):
 class DatabricksCatalogData(LooseModel):
     pricing: DatabricksPricingCatalog
     cloud_providers: dict[str, DatabricksCloudProviderData] = Field(alias="cloudProviders")
+    capabilities: dict[str, list[str]] = Field(default_factory=dict)
+    rate_limits: dict[str, dict[str, int | None]] = Field(
+        default_factory=dict, alias="rateLimits"
+    )
+    retired_models: list[dict[str, Any]] = Field(
+        default_factory=list, alias="retiredModels"
+    )
+    latency: dict[str, dict[str, Any]] = Field(default_factory=dict)

@@ -1,8 +1,9 @@
 # @dbx-tools/dbx-model-catalog
 
-The Node client connects to the Python-owned model catalog contract. It starts
-a bundled Python worker by default or connects to a remote WebSocket server
-when a URL is provided.
+The default Node client loads the JSON catalog and search index directly. It
+does not install or start Python, uv, Pynect, or Pyfig.
+The package contains public catalog data only. It does not authenticate to a
+Databricks workspace or discover customer endpoints.
 
 ```ts
 import { connectModelCatalog } from "@dbx-tools/dbx-model-catalog";
@@ -10,18 +11,13 @@ import { connectModelCatalog } from "@dbx-tools/dbx-model-catalog";
 await using local = await connectModelCatalog();
 const matches = await local.client.list({ query: "gpt", limit: 10 });
 
-await using remote = await connectModelCatalog("wss://catalog.example.com");
+await using remote = await connectModelCatalog("https://example.com/catalog.json");
 const catalog = await remote.client.catalog();
 ```
 
-The npm artifact includes the Python service source. On the first local
-connection, the client uses uv to provision an isolated environment for the
-worker. Generated catalog types are re-exported from this package. The package
-does not contain a separate JavaScript schema implementation.
-
-The worker is only required by the local service-style Node API. It loads and
-validates the Python-owned contract, applies catalog filters, and runs ranked
-search. It is not required to read the published JSON artifacts.
+Set `DBX_MODEL_CATALOG_PATH` to load a local catalog. The client loads
+`search-index.json` from the same directory unless `searchIndexPath` is set.
+Generated catalog types are re-exported from the package.
 
 For direct public ingestion without the service client, use the exported URL
 for the schema this package was generated against:
@@ -36,13 +32,44 @@ const catalog = await fetch(PUBLISHED_CATALOG_URL).then(response => response.jso
 const registry = await fetch(PUBLISHED_CATALOG_INDEX_URL).then(response => response.json());
 ```
 
-The `/browser` entry point never starts a local worker. Its
-`createCatalogClient()` function connects to an existing WebSocket server when
-that service API is wanted. A static browser application can instead fetch the
-exported catalog and search-index URLs and perform its own search, filtering,
-and sorting entirely in the browser.
+The `/browser` entry point exports `loadModelCatalog()` and
+`createModelCatalogClient()` for browser and worker use. Both use the same
+TypeScript filtering and ranked-search implementation as the Node entry point.
+
+Use the bundled snapshot for synchronous matching and enrichment of endpoints
+that another client already discovered:
+
+```ts
+import {
+  bundledModelCatalogIndex,
+  enrichLiveModels,
+} from "@dbx-tools/dbx-model-catalog/snapshot";
+
+const enriched = enrichLiveModels(
+  bundledModelCatalogIndex,
+  liveEndpoints,
+  endpoint => [endpoint.name, endpoint.modelServiceName].filter(Boolean),
+);
+```
+
+The join preserves live records that have no public catalog match. Workspace
+discovery remains authoritative when documentation lags.
+
+The local explorer demo uses the explicit Pynect adapter to connect to the
+Python server:
+
+```ts
+import { createPynectCatalogClient } from "@dbx-tools/dbx-model-catalog/pynect";
+
+const client = createPynectCatalogClient({ baseUrl: "ws://127.0.0.1:8787" });
+const matches = await client.list({ query: "gpt", limit: 10 });
+client.close();
+```
+
+Install `pynect` and `@chanx-js/client` only when using this optional adapter.
+They are not runtime dependencies of the default client.
 
 The current URL is
-<https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.json>.
+<https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v16/catalog.json>.
 Its `updated_at` field records the latest source-fetch timestamp represented by
 the catalog.

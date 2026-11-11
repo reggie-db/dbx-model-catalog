@@ -38,6 +38,8 @@ export interface Capabilities {
   structured_output?: boolean | null;
   temperature?: boolean | null;
   interleaved_reasoning?: boolean | null;
+  responses: boolean;
+  apply_patch: boolean;
   web_search: boolean;
   reasoning?: Reasoning | Reasoning1 | null;
 }
@@ -48,7 +50,7 @@ export interface CatalogFilters {
   type?: Array<Type>;
   publisher?: Array<string>;
   task?: Array<string>;
-  capability?: Array<"attachments" | "reasoning" | "structured-output" | "tools" | "web-search">;
+  capability?: Array<"apply-patch" | "attachments" | "reasoning" | "responses" | "structured-output" | "tools" | "web-search">;
   limit?: number | null;
 }
 
@@ -70,6 +72,8 @@ export interface CatalogModel {
   modalities: Modalities;
   capabilities: Capabilities;
   limits?: Limits | null;
+  rate_limits?: RateLimits | null;
+  latency?: Latency | null;
   tasks: Array<string>;
   use_cases: Array<string>;
   availability: Record<string, Availability>;
@@ -98,6 +102,8 @@ export interface CatalogModelRecord {
   modalities: Modalities;
   capabilities: Capabilities;
   limits?: Limits | null;
+  rate_limits?: RateLimits | null;
+  latency?: Latency | null;
   tasks: Array<string>;
   use_cases: Array<string>;
   availability: Record<string, Availability>;
@@ -180,6 +186,21 @@ export type Input = "text" | "image" | "audio" | "video" | "application/pdf" | "
 /** Known Databricks documentation notice kinds. */
 export type Kind = "note" | "important" | "warning" | "tip" | "caution" | "info";
 
+/** Normalized response-time score and public benchmark measurements. */
+export interface Latency {
+  score: number;
+  measurements: LatencyMeasurements;
+}
+
+/** Public benchmark measurements underlying one latency score. */
+export interface LatencyMeasurements {
+  time_to_first_token_ms: number;
+  output_tokens_per_second: number;
+  successful_run_count: number;
+  completion_token_count: number;
+  measured_at: string;
+}
+
 /** Documented token limits. */
 export interface Limits {
   context?: number | null;
@@ -205,7 +226,7 @@ export interface Modalities {
 
 /** Published Databricks model catalog with identity, capabilities, availability, pricing, lifecycle, rankings, and benchmarks. */
 export interface ModelCatalog {
-  schema_version: 15;
+  schema_version: 16;
   updated_at: string;
   models: Record<string, CatalogModel>;
 }
@@ -257,6 +278,13 @@ export interface Rankings1 {
   upper: number;
   observations: number;
   sessions: number | null;
+}
+
+/** Published pay-per-token limits for one model. */
+export interface RateLimits {
+  input_tokens_per_minute: number | null;
+  output_tokens_per_minute: number | null;
+  queries_per_hour: number | null;
 }
 
 /** Reasoning support and controls when known. */

@@ -19,7 +19,6 @@
     "@types/react-dom": "^19.2.2",
     "bun-plugin-tailwind": "^0.1.2",
     "fireargs": "^0.6.2",
-    "fuse.js": "^7.4.2",
     "lucide-react": "^0.554.0",
     "optionkit": "1.0.0",
     "pynect": "^1.0.0",

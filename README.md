@@ -5,6 +5,12 @@ models. Records combine model metadata, availability, pricing, limits,
 capabilities, retirement notices, rankings, benchmarks, and links to the source
 for each field.
 
+The catalog reads public documentation and public datasets only. It does not
+authenticate to Databricks, inspect a workspace, or determine which endpoints
+a customer can use. Applications should discover live endpoints through their
+existing Databricks client and join those identities to this catalog. Unknown
+live endpoints remain valid when public documentation has not caught up.
+
 The project is maintained in
 [`reggie-db/dbx-model-catalog`](https://github.com/reggie-db/dbx-model-catalog).
 JavaScript packages use the `@dbx-tools` scope.
@@ -12,8 +18,8 @@ JavaScript packages use the `@dbx-tools` scope.
 ## Published catalog
 
 - Schema registry: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/index.json>
-- Schema v15 JSON: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.json>
-- Schema v15 SQLite: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.sqlite>
+- Schema v16 JSON: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v16/catalog.json>
+- Schema v16 SQLite: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v16/catalog.sqlite>
 - Latest JSON alias: <https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog.json>
 
 Raw GitHub artifacts from `main` provide the JSON and SQLite endpoints for
@@ -40,7 +46,7 @@ The catalog has this top-level shape:
 
 ```json
 {
-  "schema_version": 15,
+  "schema_version": 16,
   "updated_at": "2026-11-05T00:00:00Z",
   "models": {
     "databricks-model-id": {
@@ -63,7 +69,7 @@ Schema consumers should check `schema_version`. The complete JSON Schema is at
 Download the current catalog:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.json \
+curl -fsSL https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v16/catalog.json \
   -o catalog.json
 ```
 
@@ -71,7 +77,7 @@ Use it directly from JavaScript:
 
 ```ts
 const response = await fetch(
-  "https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.json",
+  "https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v16/catalog.json",
 );
 if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
 
@@ -83,7 +89,7 @@ const activeModels = Object.entries(catalog.models)
 Download and query the maintained SQLite database:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v15/catalog.sqlite \
+curl -fsSL https://raw.githubusercontent.com/reggie-db/dbx-model-catalog/main/packages/js/web/catalog/v16/catalog.sqlite \
   -o catalog.sqlite
 sqlite3 catalog.sqlite \
   "SELECT id, name FROM models WHERE status = 'active' ORDER BY name"
@@ -126,16 +132,10 @@ remote = ModelCatalogClient.from_url("https://example.com/catalog.json")
 
 ## Node client
 
-The workspace package is `@dbx-tools/dbx-model-catalog`. Without a URL it
-starts the bundled Python worker and connects over local IPC. With a WebSocket
-URL it connects to an existing catalog server. The npm artifact carries the
-Python service source, and the client asks uv to provision an isolated
-environment on the first local connection.
-
-The worker is only needed for the service-style Node API. It loads and validates
-the Python-owned catalog contract, applies catalog filters, and runs the ranked
-search implementation. It does not perform the explorer table's sorting or
-column filtering.
+The workspace package is `@dbx-tools/dbx-model-catalog`. The default client
+loads the published JSON catalog and search index. It implements the Python
+client's filters and ranked search in TypeScript and does not install or start
+Python, uv, Pynect, or Pyfig.
 
 ```ts
 import { connectModelCatalog } from "@dbx-tools/dbx-model-catalog";
@@ -148,24 +148,42 @@ const models = await catalog.client.list({
 });
 ```
 
-Remote server use follows the same client contract:
+Pass a catalog URL to load another publication. The client derives the adjacent
+`search-index.json` URL unless `searchIndexUrl` is supplied explicitly:
 
 ```ts
-await using catalog = await connectModelCatalog("wss://catalog.example.com");
+await using catalog = await connectModelCatalog("https://example.com/catalog.json");
 const completeCatalog = await catalog.client.catalog();
 ```
 
-Consumers that only need the published snapshot do not need Python or uv. The
-`@dbx-tools/dbx-model-catalog/browser` entry point exports the generated types,
-published artifact URLs, and a browser-safe client that can connect to an
-existing WebSocket server. It never starts a local worker.
+Set `DBX_MODEL_CATALOG_PATH` to load a local catalog in Node. The client loads
+`search-index.json` from the same directory by default. The browser entry point
+exports `loadModelCatalog()`, `createModelCatalogClient()`, generated types, and
+the published artifact URLs.
 
-The Bun CLI supports local IPC and remote WebSocket access:
+For synchronous server-side use, import the bundled, validated snapshot. The
+package also provides a pure join helper for live endpoint records supplied by
+the caller; it performs no workspace lookup:
+
+```ts
+import {
+  bundledModelCatalogIndex,
+  enrichLiveModels,
+} from "@dbx-tools/dbx-model-catalog/snapshot";
+
+const enriched = enrichLiveModels(
+  bundledModelCatalogIndex,
+  liveEndpoints,
+  endpoint => [endpoint.name, endpoint.modelServiceName].filter(Boolean),
+);
+```
+
+The Bun CLI uses the same standalone client:
 
 ```sh
 bun run chanx-model-catalog models gpt
 bun run chanx-model-catalog model-feed gpt
-bun run chanx-model-catalog models gpt --url ws://127.0.0.1:8787
+bun run chanx-model-catalog models gpt --url https://example.com/catalog.json
 ```
 
 ## Server and explorer
@@ -176,11 +194,12 @@ Start the local server and browser:
 bun run serve
 ```
 
-The server listens on `http://127.0.0.1:8787`. It exposes the catalog over
-WebSocket channels and provides `/health`, `/asyncapi`, and `/asyncapi.json`.
-The local browser uses the WebSocket service. Static builds for Docker or
-another external host fetch the schema-scoped artifacts from the repository's
-`main` branch.
+The server listens on `http://127.0.0.1:8787`. It exposes the Python client over
+Pynect WebSocket channels and provides `/health`, `/asyncapi`, and
+`/asyncapi.json`. The local browser uses the package's explicit `/pynect`
+adapter to connect to that server. The default Node and browser clients do not
+import the adapter. Static builds for Docker or another external host fetch the
+schema-scoped artifacts from the repository's `main` branch.
 
 In static mode, the explorer fetches `catalog.json` and `search-index.json`
 directly from GitHub. Ranked text search, table sorting, and column filtering
@@ -300,11 +319,13 @@ bun run build
 The repository layout is:
 
 - `packages/py/core`: schema, Pydantic models, loading, filtering, and search
-- `packages/py/server`: WebSocket server and local Python worker
+- `packages/py/server`: Pynect WebSocket server used by the local demo
 - `packages/py/sync`: source ingestion, normalization, and catalog publication
 - `packages/js/client`: generated service contract plus browser and Node/Bun clients
 - `packages/js/web`: catalog explorer and published JSON, search, and SQLite artifacts
 
 Python owns the schema and service contract. The generation step produces the
-TypeScript types in `packages/js/client/src/_generated`; handwritten TypeScript
-does not duplicate the Python models.
+TypeScript types in `packages/js/client/src/_generated`. The Node filtering
+implementation is checked against the Python client by a Bun test that compares
+complete records for the same filter matrix. Pynect remains limited to the
+server-backed demo and its integration test.

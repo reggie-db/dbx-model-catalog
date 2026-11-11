@@ -24,6 +24,6 @@ test("uses explicit versions before quality tie breakers", () => {
   expect(searchStaticCatalog(index, models, "openai 6-1")[0]?.id).toBe("databricks-gpt-6-1-sol");
 });
 
-test("uses Fuse only when strict token retrieval misses", () => {
+test("returns fuzzy matches when strict token retrieval misses", () => {
   expect(searchStaticCatalog(index, models, "claud sonet")[0]?.id).toBe("databricks-claude-sonnet-5-5");
 });

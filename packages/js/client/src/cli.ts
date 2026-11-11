@@ -29,7 +29,7 @@ function parseArgs(args: string[]): CliOptions {
       'Usage: bun run chanx-model-catalog <catalog|models|model-feed> [query] '
       + '[--status VALUE] [--type VALUE] [--publisher VALUE] [--task VALUE] '
       + '[--capability VALUE] [--limit NUMBER] '
-      + '[--url ws://HOST:PORT]',
+      + '[--url https://HOST/catalog.json]',
     );
   }
   if (!['catalog', 'models', 'model-feed'].includes(command)) {
@@ -83,11 +83,7 @@ function numberOption(values: Map<string, string[]>, name: string): number | und
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   await using session = await connectModelCatalog(options.url);
-  process.stderr.write(
-    session.mode === 'ipc'
-      ? `Using local IPC (Python PID ${session.pid ?? 'starting'})\n`
-      : `Using remote WebSocket ${options.url}\n`,
-  );
+  process.stderr.write(`Using ${session.mode} catalog ${session.source}\n`);
 
   if (options.command === 'catalog') {
     process.stdout.write(`${JSON.stringify(await session.client.catalog())}\n`);

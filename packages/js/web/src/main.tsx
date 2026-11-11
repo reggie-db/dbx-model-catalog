@@ -98,7 +98,6 @@ import { createRoot } from "react-dom/client";
 import {
   PUBLISHED_CATALOG_SEARCH_INDEX_URL,
   PUBLISHED_CATALOG_URL,
-  createCatalogClient,
   type CatalogClient,
   type CatalogModel,
   type CatalogModelRecord,
@@ -106,6 +105,7 @@ import {
   type ModelCatalog as CatalogPayload,
   type SourceLink,
 } from "@dbx-tools/dbx-model-catalog/browser";
+import { createPynectCatalogClient } from "@dbx-tools/dbx-model-catalog/pynect";
 import {
   evaluationVariantLabels,
   reasoningBudgetLabel,
@@ -172,7 +172,9 @@ interface EnumOption {
 }
 
 const capabilityLabels = {
+  apply_patch: "Apply patch",
   attachments: "Attachments",
+  responses: "Responses API",
   structured_output: "Structured output",
   tools: "Tools",
   web_search: "Web search",
@@ -180,8 +182,10 @@ const capabilityLabels = {
 type CapabilityName = keyof typeof capabilityLabels;
 
 const capabilityIcons: Record<string, CatalogIcon> = {
+  "Apply patch": Wrench,
   Attachments: Paperclip,
   Reasoning: Brain,
+  "Responses API": Braces,
   "Structured output": Braces,
   Tools: Wrench,
   "Web search": Globe2,
@@ -1066,7 +1070,7 @@ function App() {
     let active = true;
     const staticCatalog = __DBX_MODEL_CATALOG_WEB_SOURCE__ === "github"
       || window.location.hostname.endsWith(".github.io");
-    const client = staticCatalog ? null : createCatalogClient({ baseUrl: catalogWebSocketUrl() });
+    const client = staticCatalog ? null : createPynectCatalogClient({ baseUrl: catalogWebSocketUrl() });
     catalogClient.current = client;
     const request = client
       ? client.catalog()

@@ -9,6 +9,36 @@ const catalogPath = fileURLToPath(
 process.env.DBX_MODEL_CATALOG_PATH ??= catalogPath;
 const { generateProject } = await import('pynect');
 const result = await generateProject({ root: serverRoot });
+const asyncApiPath = new URL('../src/_generated/asyncapi.json', import.meta.url);
+const asyncApi = (await Bun.file(asyncApiPath).json()) as {
+  components?: { schemas?: Record<string, unknown> };
+};
+const schemas = asyncApi.components?.schemas;
+if (!schemas?.ModelCatalog || !schemas.CatalogSearchIndexPayload) {
+  throw new Error('Generated AsyncAPI is missing catalog schemas');
+}
+const rewriteReferences = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(rewriteReferences);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, nested]) => [
+      key,
+      key === '$ref' && typeof nested === 'string'
+        ? nested.replace('#/components/schemas/', '#/$defs/')
+        : rewriteReferences(nested),
+    ]),
+  );
+};
+const schemaDocument = (name: string) => ({
+  ...(rewriteReferences(schemas[name]) as Record<string, unknown>),
+  $defs: rewriteReferences(schemas),
+});
+await Bun.write(
+  new URL('../src/_generated/json-schema.ts', import.meta.url),
+  '// Generated from the Python-owned AsyncAPI contract. Do not edit.\n' +
+    `export const MODEL_CATALOG_JSON_SCHEMA = ${JSON.stringify(schemaDocument('ModelCatalog'))} as const;\n` +
+    `export const CATALOG_SEARCH_INDEX_JSON_SCHEMA = ${JSON.stringify(schemaDocument('CatalogSearchIndexPayload'))} as const;\n`,
+);
 const catalog = (await Bun.file(catalogPath).json()) as {
   schema_version?: unknown;
 };

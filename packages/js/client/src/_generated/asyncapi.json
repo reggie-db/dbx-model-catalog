@@ -433,6 +433,14 @@
             "default": null,
             "title": "Interleaved Reasoning"
           },
+          "responses": {
+            "title": "Responses",
+            "type": "boolean"
+          },
+          "apply_patch": {
+            "title": "Apply Patch",
+            "type": "boolean"
+          },
           "web_search": {
             "title": "Web Search",
             "type": "boolean"
@@ -454,6 +462,8 @@
           }
         },
         "required": [
+          "responses",
+          "apply_patch",
           "web_search"
         ],
         "title": "Capabilities",
@@ -505,8 +515,10 @@
           "capability": {
             "items": {
               "enum": [
+                "apply-patch",
                 "attachments",
                 "reasoning",
+                "responses",
                 "structured-output",
                 "tools",
                 "web-search"
@@ -667,6 +679,28 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Limits"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "rate_limits": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RateLimits"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "latency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Latency"
               },
               {
                 "type": "null"
@@ -933,6 +967,28 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Limits"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "rate_limits": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RateLimits"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "latency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Latency"
               },
               {
                 "type": "null"
@@ -1402,6 +1458,68 @@
         "title": "Kind",
         "type": "string"
       },
+      "Latency": {
+        "additionalProperties": false,
+        "description": "Normalized response-time score and public benchmark measurements.",
+        "properties": {
+          "score": {
+            "exclusiveMinimum": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "measurements": {
+            "$ref": "#/components/schemas/LatencyMeasurements"
+          }
+        },
+        "required": [
+          "score",
+          "measurements"
+        ],
+        "title": "Latency",
+        "type": "object"
+      },
+      "LatencyMeasurements": {
+        "additionalProperties": false,
+        "description": "Public benchmark measurements underlying one latency score.",
+        "properties": {
+          "time_to_first_token_ms": {
+            "minimum": 0.0,
+            "title": "Time To First Token Ms",
+            "type": "number"
+          },
+          "output_tokens_per_second": {
+            "exclusiveMinimum": 0.0,
+            "title": "Output Tokens Per Second",
+            "type": "number"
+          },
+          "successful_run_count": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "title": "Successful Run Count",
+            "type": "integer"
+          },
+          "completion_token_count": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "title": "Completion Token Count",
+            "type": "integer"
+          },
+          "measured_at": {
+            "format": "date-time",
+            "title": "Measured At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time_to_first_token_ms",
+          "output_tokens_per_second",
+          "successful_run_count",
+          "completion_token_count",
+          "measured_at"
+        ],
+        "title": "LatencyMeasurements",
+        "type": "object"
+      },
       "Limits": {
         "additionalProperties": false,
         "description": "Documented token limits.",
@@ -1539,7 +1657,7 @@
         "description": "Published Databricks model catalog with identity, capabilities, availability, pricing, lifecycle, rankings, and benchmarks.",
         "properties": {
           "schema_version": {
-            "const": 15,
+            "const": 16,
             "title": "Schema Version",
             "type": "integer"
           },
@@ -1848,6 +1966,58 @@
           "sessions"
         ],
         "title": "Rankings1",
+        "type": "object"
+      },
+      "RateLimits": {
+        "additionalProperties": false,
+        "description": "Published pay-per-token limits for one model.",
+        "properties": {
+          "input_tokens_per_minute": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens Per Minute"
+          },
+          "output_tokens_per_minute": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens Per Minute"
+          },
+          "queries_per_hour": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queries Per Hour"
+          }
+        },
+        "required": [
+          "input_tokens_per_minute",
+          "output_tokens_per_minute",
+          "queries_per_hour"
+        ],
+        "title": "RateLimits",
         "type": "object"
       },
       "Reasoning": {

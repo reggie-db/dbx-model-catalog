@@ -4,7 +4,7 @@
   "properties": {
     "schema_version": {
       "type": "number",
-      "const": 15,
+      "const": 16,
       "description": "Version of the published catalog contract."
     },
     "updated_at": {
@@ -255,6 +255,14 @@
               "description": "Whether reasoning content can be interleaved with the answer.",
               "type": "boolean"
             },
+            "responses": {
+              "type": "boolean",
+              "description": "Whether Databricks documents OpenAI Responses API support."
+            },
+            "apply_patch": {
+              "type": "boolean",
+              "description": "Whether Databricks documents support for the apply_patch tool."
+            },
             "web_search": {
               "type": "boolean",
               "description": "Whether Databricks documents native web search support."
@@ -353,6 +361,8 @@
             }
           },
           "required": [
+            "responses",
+            "apply_patch",
             "web_search"
           ],
           "additionalProperties": false,
@@ -381,6 +391,67 @@
               "maximum": 9007199254740991
             }
           },
+          "additionalProperties": false
+        },
+        "rate_limits": {
+          "description": "Published Databricks pay-per-token rate limits.",
+          "type": "object",
+          "properties": {
+            "input_tokens_per_minute": {
+              "description": "Published input tokens per minute, or null when unpublished.",
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output_tokens_per_minute": {
+              "description": "Published output tokens per minute, or null when unpublished.",
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "queries_per_hour": {
+              "description": "Published requests or queries per hour, or null when unpublished.",
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "input_tokens_per_minute",
+            "output_tokens_per_minute",
+            "queries_per_hour"
+          ],
+          "additionalProperties": false
+        },
+        "latency": {
+          "description": "Public benchmark latency metadata when matched.",
+          "type": "object",
+          "properties": {
+            "score": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Normalized response time in milliseconds; lower values are faster."
+            },
+            "measurements": {
+              "type": "object",
+              "properties": {
+                "time_to_first_token_ms": {"type": "number", "minimum": 0},
+                "output_tokens_per_second": {"type": "number", "exclusiveMinimum": 0},
+                "successful_run_count": {"type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991},
+                "completion_token_count": {"type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991},
+                "measured_at": {"type": "string", "format": "date-time"}
+              },
+              "required": [
+                "time_to_first_token_ms",
+                "output_tokens_per_second",
+                "successful_run_count",
+                "completion_token_count",
+                "measured_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": ["score", "measurements"],
           "additionalProperties": false
         },
         "tasks": {

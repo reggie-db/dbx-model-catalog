@@ -158,6 +158,8 @@ def test_search_index_exposes_python_owned_weights() -> None:
 def test_search_index_includes_supported_reasoning_controls() -> None:
     model = _model("databricks-gpt-6", "OpenAI GPT-6", "2026-10-31")
     model["capabilities"] = {
+        "responses": False,
+        "apply_patch": False,
         "web_search": False,
         "reasoning": {
             "supported": True,
@@ -253,7 +255,7 @@ def _overall_rank(record: CatalogModelRecord) -> tuple[float, float, int, int]:
 
 def _catalog(*models: dict[str, object]) -> dict[str, object]:
     return {
-        "schema_version": 15,
+        "schema_version": 16,
         "updated_at": "2026-11-05T12:00:00Z",
         "models": {str(model.pop("id")): model for model in models},
     }
@@ -281,7 +283,7 @@ def _model(
         "status": "active",
         "release_date": release_date,
         "modalities": {"input": ["text"], "output": ["text"]},
-        "capabilities": {"web_search": False},
+        "capabilities": {"responses": False, "apply_patch": False, "web_search": False},
         "tasks": tasks or ["chat"],
         "use_cases": tasks or ["chat"],
         "availability": {},
