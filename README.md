@@ -133,9 +133,8 @@ remote = ModelCatalogClient.from_url("https://example.com/catalog.json")
 ## Node client
 
 The workspace package is `@dbx-tools/dbx-model-catalog`. The default client
-loads the published JSON catalog and search index. It implements the Python
-client's filters and ranked search in TypeScript and does not install or start
-Python, uv, Pynect, or Pyfig.
+loads the published JSON catalog and search index. It provides TypeScript
+implementations of the Python client's filters and ranked search.
 
 ```ts
 import { connectModelCatalog } from "@dbx-tools/dbx-model-catalog";
@@ -162,8 +161,8 @@ exports `loadModelCatalog()`, `createModelCatalogClient()`, generated types, and
 the published artifact URLs.
 
 For synchronous server-side use, import the bundled, validated snapshot. The
-package also provides a pure join helper for live endpoint records supplied by
-the caller; it performs no workspace lookup:
+package also provides a pure join helper that enriches live endpoint records
+supplied by the caller:
 
 ```ts
 import {
