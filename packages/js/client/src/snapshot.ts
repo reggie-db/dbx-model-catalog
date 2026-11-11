@@ -1,24 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
+import catalogJson from "../../web/catalog.json" with { type: "json" };
+import searchIndexJson from "../../web/search-index.json" with { type: "json" };
 import { createModelCatalogIndex } from "./catalog-index.js";
 import { parseCatalogSearchIndex, parseModelCatalog } from "./validation.js";
 
-function bundledFile(name: string): URL {
-  const candidates = [
-    new URL(name, import.meta.url),
-    new URL(`../../web/${name}`, import.meta.url),
-  ];
-  const found = candidates.find(candidate => existsSync(candidate));
-  if (!found) throw new Error(`Bundled model catalog file is missing: ${name}`);
-  return found;
-}
+export const BUNDLED_MODEL_CATALOG = parseModelCatalog(catalogJson);
 
-export const BUNDLED_MODEL_CATALOG = parseModelCatalog(
-  JSON.parse(readFileSync(bundledFile("catalog.json"), "utf8")),
-);
-
-export const BUNDLED_CATALOG_SEARCH_INDEX = parseCatalogSearchIndex(
-  JSON.parse(readFileSync(bundledFile("search-index.json"), "utf8")),
-);
+export const BUNDLED_CATALOG_SEARCH_INDEX = parseCatalogSearchIndex(searchIndexJson);
 
 /** Offline, synchronous index shipped with the npm package. */
 export const bundledModelCatalogIndex = createModelCatalogIndex(

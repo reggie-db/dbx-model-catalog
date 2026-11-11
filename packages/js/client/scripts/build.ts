@@ -1,4 +1,4 @@
-import { chmod, copyFile, rm } from 'node:fs/promises';
+import { chmod, copyFile, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dir, '..');
@@ -52,6 +52,10 @@ const snapshotResult = await Bun.build({
 if (!snapshotResult.success) {
   for (const log of snapshotResult.logs) console.error(log);
   process.exit(1);
+}
+const snapshotOutput = await readFile(resolve(dist, 'snapshot.js'), 'utf8');
+if (snapshotOutput.includes(workspaceRoot)) {
+  throw new Error('Bundled snapshot contains a machine-local workspace path');
 }
 await Promise.all([
   copyFile(resolve(root, '../web/catalog.json'), resolve(dist, 'catalog.json')),

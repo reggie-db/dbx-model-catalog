@@ -1,6 +1,6 @@
 {
   "name": "@dbx-tools/dbx-model-catalog",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Node and browser client for the published Databricks model catalog",
   "type": "module",
   "packageManager": "bun@1.4.4",
