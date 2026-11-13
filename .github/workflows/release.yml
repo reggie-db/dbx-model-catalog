@@ -50,17 +50,31 @@ jobs:
         run: bun install
       - name: Run workspace checks
         run: bun run check
-      - name: Pack client
+      - name: Build release packages
         run: |
-          mkdir -p release
-          cd packages/js/client
-          bun pm pack --destination ../../../release
-      - name: Validate package
+          mkdir -p release/npm release/python
+          while IFS= read -r manifest; do
+            if node -e '
+              const fs = require("node:fs");
+              const pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              process.exit(pkg.private === true || !pkg.version ? 1 : 0);
+            ' "$manifest"; then
+              package_dir="$(dirname "$manifest")"
+              (cd "$package_dir" && bun pm pack --destination "$GITHUB_WORKSPACE/release/npm")
+            fi
+          done < <(find packages/js -mindepth 2 -maxdepth 2 -name package.json -print | sort)
+          uv build --all-packages --wheel --out-dir release/python --no-sources
+      - name: Validate packages
         run: |
-          TARBALL="$(find release -maxdepth 1 -name '*.tgz' -print -quit)"
-          test -n "$TARBALL"
-          bunx publint@0.3.25 --strict "$TARBALL"
-          bunx @arethetypeswrong/cli@0.18.5 --profile esm-only "$TARBALL"
+          shopt -s nullglob
+          NPM_PACKAGES=(release/npm/*.tgz)
+          PYTHON_WHEELS=(release/python/*.whl)
+          test "${#NPM_PACKAGES[@]}" -gt 0
+          test "${#PYTHON_WHEELS[@]}" -gt 0
+          for package in "${NPM_PACKAGES[@]}"; do
+            bunx publint@0.3.25 --strict "$package"
+            bunx @arethetypeswrong/cli@0.18.5 --profile esm-only "$package"
+          done
       - name: Ensure npm is current
         run: |
           npm install --global npm@latest
@@ -71,28 +85,70 @@ jobs:
         run: |
           test -n "$NODE_AUTH_TOKEN"
           npm whoami --registry https://registry.npmjs.org
-      - name: Publish client
+      - name: Publish npm packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          TARBALL="$(find "$PWD/release" -maxdepth 1 -name '*.tgz' -print -quit)"
-          PACKAGE="$(node -p "require('./packages/js/client/package.json').name")"
-          VERSION="$(node -p "require('./packages/js/client/package.json').version")"
           test -n "$NODE_AUTH_TOKEN"
-          if npm view "$PACKAGE@$VERSION" version >/dev/null 2>&1; then
-            echo "$PACKAGE@$VERSION is already published."
-          else
+          for tarball in "$PWD"/release/npm/*.tgz; do
+            read -r PACKAGE VERSION < <(
+              tar -xOf "$tarball" package/package.json |
+                node -e '
+                  const fs = require("node:fs");
+                  const pkg = JSON.parse(fs.readFileSync(0, "utf8"));
+                  console.log(pkg.name, pkg.version);
+                '
+            )
+            if npm view "$PACKAGE@$VERSION" version >/dev/null 2>&1; then
+              echo "$PACKAGE@$VERSION is already published."
+              continue
+            fi
+
             PUBLISH_LOG="$(mktemp)"
             set +e
-            npm publish "$TARBALL" --access public 2>&1 | tee "$PUBLISH_LOG"
+            npm publish "$tarball" --access public 2>&1 | tee "$PUBLISH_LOG"
             PUBLISH_STATUS="${PIPESTATUS[0]}"
             set -e
-            if [ "$PUBLISH_STATUS" -eq 0 ]; then
-              exit 0
-            fi
-            if grep -Eq 'previously (published|staged) version' "$PUBLISH_LOG"; then
+            if [ "$PUBLISH_STATUS" -ne 0 ] && grep -Eq 'previously (published|staged) version' "$PUBLISH_LOG"; then
               echo "$PACKAGE@$VERSION was already accepted by the registry."
-              exit 0
+              PUBLISH_STATUS=0
             fi
-            exit "$PUBLISH_STATUS"
-          fi
+            rm -f "$PUBLISH_LOG"
+            test "$PUBLISH_STATUS" -eq 0
+          done
+      - name: Upload release packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-packages
+          if-no-files-found: error
+          path: |
+            release/npm/*.tgz
+            release/python/*.whl
+          retention-days: 7
+
+  release-assets:
+    name: Publish GitHub release assets
+    needs:
+      - publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download release packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-packages
+          path: ${{ runner.temp }}/release
+      - name: Upload packages to GitHub release
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_DIR: ${{ runner.temp }}/release
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          gh release view "$RELEASE_TAG" >/dev/null
+          shopt -s nullglob
+          ASSETS=("$RELEASE_DIR"/npm/*.tgz "$RELEASE_DIR"/python/*.whl)
+          test "${#ASSETS[@]}" -gt 0
+          gh release upload "$RELEASE_TAG" "${ASSETS[@]}" --clobber

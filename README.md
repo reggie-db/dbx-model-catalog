@@ -315,6 +315,11 @@ distribution:
 bun run build
 ```
 
+Publishing a GitHub Release validates the workspace, publishes every versioned
+non-private npm workspace, and attaches its `.tgz` archive plus every Python
+workspace wheel to the release. The release workflow can be retried for an
+existing release tag through manual dispatch.
+
 The repository layout is:
 
 - `packages/py/core`: schema, Pydantic models, loading, filtering, and search
