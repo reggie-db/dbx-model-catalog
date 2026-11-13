@@ -19,6 +19,21 @@ Set `DBX_MODEL_CATALOG_PATH` to load a local catalog. The client loads
 `search-index.json` from the same directory unless `searchIndexPath` is set.
 Generated catalog types are re-exported from the package.
 
+The browser-safe entry point also exports the catalog-owned Zod schemas. Use
+these schemas directly in downstream wire contracts instead of recreating the
+catalog fields:
+
+```ts
+import {
+  CatalogModelRecordSchema,
+  CatalogStatusSchema,
+  type CatalogModelRecord,
+} from "@dbx-tools/dbx-model-catalog/browser";
+
+const model: CatalogModelRecord = CatalogModelRecordSchema.parse(value);
+const status = CatalogStatusSchema.parse(model.status);
+```
+
 For direct public ingestion without the service client, use the exported URL
 for the schema this package was generated against:
 

@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { enrichLiveModels, modelProviderFamily, normalizeModelIdentity } from "../src/browser.js";
 import { bundledModelCatalogIndex } from "../src/snapshot.js";
-import { parseModelCatalog } from "../src/validation.js";
+import {
+  CatalogCapabilitiesSchema,
+  CatalogModelRecordSchema,
+  CatalogStatusSchema,
+  parseCatalogModelRecord,
+  parseModelCatalog,
+} from "../src/validation.js";
 
 describe("bundled model catalog index", () => {
   test("resolves endpoint, system-service, and provider identities", () => {
@@ -48,4 +54,14 @@ test("normalizes routing identities independently of catalog lineage", () => {
 
 test("rejects untrusted catalog payloads that only satisfy TypeScript casts", () => {
   expect(() => parseModelCatalog({ schema_version: 16, models: {} })).toThrow();
+});
+
+test("exports composable runtime schemas for catalog-owned contracts", () => {
+  const record = bundledModelCatalogIndex.records[0];
+  if (!record) throw new Error("Bundled catalog is empty");
+  expect(CatalogModelRecordSchema.parse(record)).toEqual(record);
+  expect(parseCatalogModelRecord(record)).toEqual(record);
+  expect(CatalogCapabilitiesSchema.parse(record.capabilities)).toEqual(record.capabilities);
+  expect(CatalogStatusSchema.parse(record.status)).toBe(record.status);
+  expect(() => CatalogModelRecordSchema.parse({ id: record.id })).toThrow();
 });
