@@ -238,5 +238,5 @@ async function run(command: readonly string[], capture = false): Promise<string>
   if (exitCode !== 0) {
     throw new Error(`${command.join(" ")} failed with exit code ${exitCode}${stderr ? `: ${stderr.trim()}` : ""}.`);
   }
-  return stdout.trim();
+  return stdout.trimEnd();
 }
