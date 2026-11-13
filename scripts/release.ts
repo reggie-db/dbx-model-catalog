@@ -17,8 +17,12 @@ if (unknownArgs.length > 0) throw new Error(`Unknown release argument: ${unknown
 const increment: Increment = increments[0] ?? "patch";
 const dryRun = args.has("--dry-run");
 const versionFiles = await discoverVersionFiles();
+const generatedFiles = (await git(["ls-files", "packages/js/client/src/_generated"]))
+  .split(/\r?\n/u)
+  .filter(Boolean);
+const releaseFiles = [...new Set([...versionFiles, ...generatedFiles])].sort();
 const snapshots = new Map<string, string>();
-for (const filename of versionFiles) {
+for (const filename of releaseFiles) {
   snapshots.set(filename, await readFile(path.join(ROOT, filename), "utf8"));
 }
 
@@ -52,7 +56,7 @@ try {
   await run(["bun", "run", "check"]);
 
   const changed = await changedPaths();
-  const unexpected = changed.filter((filename) => !versionFiles.includes(filename));
+  const unexpected = changed.filter((filename) => !releaseFiles.includes(filename));
   if (unexpected.length > 0) {
     throw new Error(`Release changed unexpected files: ${unexpected.join(", ")}.`);
   }
@@ -60,7 +64,7 @@ try {
   if (dryRun) {
     console.log(`Dry run passed for ${tag}.`);
   } else {
-    await run(["git", "add", "--", ...versionFiles]);
+    await run(["git", "add", "--", ...releaseFiles]);
     await run(["git", "commit", "-m", `release: ${tag}`]);
     await run(["git", "tag", tag]);
     releaseHistoryCreated = true;
