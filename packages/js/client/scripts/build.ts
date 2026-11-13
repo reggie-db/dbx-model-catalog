@@ -54,7 +54,10 @@ if (!snapshotResult.success) {
   process.exit(1);
 }
 const snapshotOutput = await readFile(resolve(dist, 'snapshot.js'), 'utf8');
-if (snapshotOutput.includes(workspaceRoot)) {
+// The container workspace is `/workspace`, which can also occur legitimately in
+// catalog URLs. Check the package directory so only an embedded local file path
+// fails the build.
+if (snapshotOutput.includes(root)) {
   throw new Error('Bundled snapshot contains a machine-local workspace path');
 }
 await Promise.all([
