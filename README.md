@@ -315,10 +315,23 @@ distribution:
 bun run build
 ```
 
-Publishing a GitHub Release validates the workspace, publishes every versioned
-non-private npm workspace, and attaches its `.tgz` archive plus every Python
-workspace wheel to the release. The release workflow can be retried for an
-existing release tag through manual dispatch.
+Run `bun run release` from a clean, current `main` branch to create the next
+patch release. Pass `minor` or `major` to select another increment. The command
+versions every non-private npm workspace and Python project, runs the complete
+check, commits the version changes, creates the tag, and atomically pushes the
+commit and tag. The tag workflow publishes npm packages and creates a GitHub
+Release containing every npm `.tgz` archive and Python `.whl` file. It publishes
+all registry packages through trusted publishing with these GitHub environments:
+
+- `npm` for `@dbx-tools/dbx-model-catalog`
+- `pypi-dbx-model-catalog` for `dbx-model-catalog`
+- `pypi-dbx-model-catalog-server` for `dbx-model-catalog-server`
+- `pypi-dbx-model-catalog-sync` for `dbx-model-catalog-sync`
+
+Each npm or PyPI trusted publisher must use repository
+`reggie-db/dbx-model-catalog`, workflow `release.yml`, and its matching
+environment name. The npm package already exists. Use PyPI pending trusted
+publishers if any Python project does not exist yet.
 
 The repository layout is:
 

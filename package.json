@@ -34,6 +34,7 @@
   },
   "scripts": {
     "generate": "bun packages/js/client/scripts/generate.ts",
+    "release": "bun scripts/release.ts",
     "typecheck": "bun run typecheck:client && bun run typecheck:web && bun run typecheck:static-server",
     "typecheck:client": "bun run tsc --noEmit -p packages/js/client/tsconfig.json",
     "typecheck:static-server": "bun run tsc --noEmit -p packages/js/static-server/tsconfig.json",
