@@ -38,15 +38,12 @@
       "import": "./dist/pynect.js",
       "default": "./dist/pynect.js"
     },
-    "./snapshot": {
-      "types": "./dist/snapshot.d.ts",
-      "import": "./dist/snapshot.js",
-      "default": "./dist/snapshot.js"
-    },
     "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/*.ts",
+    "src/_generated/*.ts"
   ],
   "scripts": {
     "build": "bun scripts/build.ts",

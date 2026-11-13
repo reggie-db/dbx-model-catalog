@@ -109,5 +109,6 @@ export {
   createModelCatalogClient,
   filterCatalogRecords,
   loadModelCatalog,
+  loadModelCatalogIndex,
   searchCatalogRecords,
 } from "./browser.js";

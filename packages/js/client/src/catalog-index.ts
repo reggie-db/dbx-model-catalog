@@ -28,6 +28,14 @@ export class ModelCatalogIndex {
     readonly catalog: ModelCatalog,
     readonly searchIndex: CatalogSearchIndexPayload,
   ) {
+    if (catalog.schema_version !== searchIndex.catalog_schema_version) {
+      throw new Error(
+        `Catalog schema v${catalog.schema_version} does not match search index schema v${searchIndex.catalog_schema_version}`,
+      );
+    }
+    if (catalog.updated_at !== searchIndex.updated_at) {
+      throw new Error("Catalog and search index timestamps do not match");
+    }
     this.records = Object.entries(catalog.models).map(([id, model]) => ({ ...model, id }));
     for (const record of this.records) {
       for (const identity of modelIdentities(record)) {

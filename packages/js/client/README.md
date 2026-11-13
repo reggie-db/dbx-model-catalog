@@ -51,24 +51,28 @@ The `/browser` entry point exports `loadModelCatalog()` and
 `createModelCatalogClient()` for browser and worker use. Both use the same
 TypeScript filtering and ranked-search implementation as the Node entry point.
 
-Use the bundled snapshot for synchronous matching and enrichment of endpoints
-that another client already discovered:
+Load the public catalog remotely when matching and enriching endpoints that
+another client already discovered:
 
 ```ts
 import {
-  bundledModelCatalogIndex,
   enrichLiveModels,
-} from "@dbx-tools/dbx-model-catalog/snapshot";
+  loadModelCatalogIndex,
+} from "@dbx-tools/dbx-model-catalog/browser";
+
+const modelCatalogIndex = await loadModelCatalogIndex();
 
 const enriched = enrichLiveModels(
-  bundledModelCatalogIndex,
+  modelCatalogIndex,
   liveEndpoints,
   endpoint => [endpoint.name, endpoint.modelServiceName].filter(Boolean),
 );
 ```
 
 The join preserves live records that have no public catalog match. Workspace
-discovery remains authoritative when documentation lags.
+discovery remains authoritative when documentation lags. The npm package does
+not embed a catalog snapshot; catalog and search data are fetched from the
+published schema URL.
 
 The local explorer demo uses the explicit Pynect adapter to connect to the
 Python server:

@@ -1,5 +1,6 @@
 import { createModelCatalogClient } from "./local-client.js";
 import type { CatalogClient } from "./types.js";
+import { createModelCatalogIndex, type ModelCatalogIndex } from "./catalog-index.js";
 import {
   PUBLISHED_CATALOG_SEARCH_INDEX_URL,
   PUBLISHED_CATALOG_URL,
@@ -27,6 +28,13 @@ export interface LoadModelCatalogOptions {
 export async function loadModelCatalog(
   options: LoadModelCatalogOptions = {},
 ): Promise<CatalogClient> {
+  const index = await loadModelCatalogIndex(options);
+  return createModelCatalogClient(index.catalog, index.searchIndex);
+}
+
+export async function loadModelCatalogIndex(
+  options: LoadModelCatalogOptions = {},
+): Promise<ModelCatalogIndex> {
   const loader = options.fetch ?? globalThis.fetch;
   const catalogUrl = options.catalogUrl ?? PUBLISHED_CATALOG_URL;
   const searchIndexUrl = options.searchIndexUrl ?? (
@@ -42,7 +50,7 @@ export async function loadModelCatalog(
   if (!searchIndexResponse.ok) {
     throw new Error(`Search index request failed with ${searchIndexResponse.status}`);
   }
-  return createModelCatalogClient(
+  return createModelCatalogIndex(
     parseModelCatalog(await catalogResponse.json()),
     parseCatalogSearchIndex(await searchIndexResponse.json()),
   );

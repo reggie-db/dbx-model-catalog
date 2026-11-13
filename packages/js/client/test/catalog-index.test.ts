@@ -1,19 +1,32 @@
 import { describe, expect, test } from "bun:test";
-import { enrichLiveModels, modelProviderFamily, normalizeModelIdentity } from "../src/browser.js";
-import { bundledModelCatalogIndex } from "../src/snapshot.js";
+import {
+  createModelCatalogIndex,
+  enrichLiveModels,
+  modelProviderFamily,
+  normalizeModelIdentity,
+} from "../src/browser.js";
 import {
   CatalogCapabilitiesSchema,
   CatalogModelRecordSchema,
   CatalogStatusSchema,
+  parseCatalogSearchIndex,
   parseCatalogModelRecord,
   parseModelCatalog,
 } from "../src/validation.js";
 
-describe("bundled model catalog index", () => {
+const catalog = parseModelCatalog(
+  await Bun.file(new URL("../../web/catalog.json", import.meta.url)).json(),
+);
+const searchIndex = parseCatalogSearchIndex(
+  await Bun.file(new URL("../../web/search-index.json", import.meta.url)).json(),
+);
+const modelCatalogIndex = createModelCatalogIndex(catalog, searchIndex);
+
+describe("model catalog index", () => {
   test("resolves endpoint, system-service, and provider identities", () => {
-    const endpoint = bundledModelCatalogIndex.resolve("databricks-gpt-6-1-sol");
-    const service = bundledModelCatalogIndex.resolve("system.ai.gpt-6-1-sol");
-    const provider = bundledModelCatalogIndex.resolve("openai/gpt-6.1-sol");
+    const endpoint = modelCatalogIndex.resolve("databricks-gpt-6-1-sol");
+    const service = modelCatalogIndex.resolve("system.ai.gpt-6-1-sol");
+    const provider = modelCatalogIndex.resolve("openai/gpt-6.1-sol");
 
     expect(endpoint?.record.id).toBe("databricks-gpt-6-1-sol");
     expect(service?.record.id).toBe(endpoint?.record.id);
@@ -23,7 +36,7 @@ describe("bundled model catalog index", () => {
   });
 
   test("returns scored search details without changing ranked records", () => {
-    const [match] = bundledModelCatalogIndex.search("gpt 6.1 sol", 1);
+    const [match] = modelCatalogIndex.search("gpt 6.1 sol", 1);
     expect(match?.record.id).toBe("databricks-gpt-6-1-sol");
     expect(match?.score).toBeGreaterThan(0);
     expect(match?.relevance).toBeGreaterThan(0);
@@ -35,7 +48,7 @@ describe("bundled model catalog index", () => {
       { name: "databricks-claude-sonnet-4-6", service: "system.ai.claude-sonnet-4-6" },
     ];
     const enriched = enrichLiveModels(
-      bundledModelCatalogIndex,
+      modelCatalogIndex,
       live,
       model => [model.name, ...(model.service ? [model.service] : [])],
     );
@@ -57,8 +70,8 @@ test("rejects untrusted catalog payloads that only satisfy TypeScript casts", ()
 });
 
 test("exports composable runtime schemas for catalog-owned contracts", () => {
-  const record = bundledModelCatalogIndex.records[0];
-  if (!record) throw new Error("Bundled catalog is empty");
+  const record = modelCatalogIndex.records[0];
+  if (!record) throw new Error("Catalog is empty");
   expect(CatalogModelRecordSchema.parse(record)).toEqual(record);
   expect(parseCatalogModelRecord(record)).toEqual(record);
   expect(CatalogCapabilitiesSchema.parse(record.capabilities)).toEqual(record.capabilities);

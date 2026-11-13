@@ -2,9 +2,11 @@ import { expect, test } from 'bun:test';
 import { fileURLToPath } from 'node:url';
 import {
   PUBLISHED_CATALOG_INDEX_URL,
+  PUBLISHED_CATALOG_SEARCH_INDEX_URL,
   PUBLISHED_CATALOG_SCHEMA_VERSION,
   PUBLISHED_CATALOG_URL,
   connectModelCatalog,
+  loadModelCatalogIndex,
 } from '../src/index.js';
 
 test('exports schema-scoped catalog URLs', () => {
@@ -33,6 +35,25 @@ test('uses local files without starting Python and filters the catalog', async (
     else process.env.DBX_MODEL_CATALOG_PATH = previousCatalogPath;
   }
 }, 30_000);
+
+test('loads the catalog index from the published URLs', async () => {
+  const catalog = await Bun.file(new URL('../../web/catalog.json', import.meta.url)).json();
+  const searchIndex = await Bun.file(new URL('../../web/search-index.json', import.meta.url)).json();
+  const requested: string[] = [];
+  const fetcher = Object.assign(
+    async (input: Parameters<typeof fetch>[0]) => {
+      const url = String(input);
+      requested.push(url);
+      return Response.json(url === PUBLISHED_CATALOG_URL ? catalog : searchIndex);
+    },
+    { preconnect: fetch.preconnect },
+  );
+
+  const index = await loadModelCatalogIndex({ fetch: fetcher });
+
+  expect(requested).toEqual([PUBLISHED_CATALOG_URL, PUBLISHED_CATALOG_SEARCH_INDEX_URL]);
+  expect(index.resolve('system.ai.gpt-6-1-sol')?.record.id).toBe('databricks-gpt-6-1-sol');
+});
 
 test('rejects WebSocket URLs from the standalone client', async () => {
   expect(connectModelCatalog('ws://127.0.0.1:8787')).rejects.toThrow(

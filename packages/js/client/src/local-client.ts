@@ -12,19 +12,8 @@ export function createModelCatalogClient(
   catalog: ModelCatalog,
   searchIndex: CatalogSearchIndexPayload,
 ): CatalogClient {
-  if (catalog.schema_version !== searchIndex.catalog_schema_version) {
-    throw new Error(
-      `Catalog schema v${catalog.schema_version} does not match search index schema v${searchIndex.catalog_schema_version}`,
-    );
-  }
-  if (catalog.updated_at !== searchIndex.updated_at) {
-    throw new Error("Catalog and search index timestamps do not match");
-  }
-  const records: CatalogModelRecord[] = Object.entries(catalog.models).map(([id, model]) => ({
-    ...model,
-    id,
-  }));
   const index = createModelCatalogIndex(catalog, searchIndex);
+  const records: CatalogModelRecord[] = [...index.records];
 
   return {
     async catalog(): Promise<ModelCatalog> {

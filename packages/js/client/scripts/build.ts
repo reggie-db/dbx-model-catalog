@@ -1,17 +1,24 @@
-import { chmod, copyFile, readFile, rm } from 'node:fs/promises';
+import { chmod, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dir, '..');
 const workspaceRoot = resolve(root, '../../..');
 const dist = resolve(root, 'dist');
+const manifest = await Bun.file(resolve(root, 'package.json')).json() as {
+  dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+};
+const external = [
+  ...Object.keys(manifest.dependencies ?? {}),
+  ...Object.keys(manifest.peerDependencies ?? {}),
+];
 await rm(dist, { force: true, recursive: true });
 
 const nodeResult = await Bun.build({
   entrypoints: [resolve(root, 'src/index.ts'), resolve(root, 'src/cli.ts')],
-  external: ['fs-ext'],
+  external,
   format: 'esm',
   outdir: dist,
-  sourcemap: 'external',
   target: 'node',
 });
 
@@ -21,9 +28,9 @@ if (!nodeResult.success) {
 }
 const browserResult = await Bun.build({
   entrypoints: [resolve(root, 'src/browser.ts')],
+  external,
   format: 'esm',
   outdir: dist,
-  sourcemap: 'external',
   target: 'browser',
 });
 if (!browserResult.success) {
@@ -32,38 +39,15 @@ if (!browserResult.success) {
 }
 const pynectResult = await Bun.build({
   entrypoints: [resolve(root, 'src/pynect.ts')],
-  external: ['@chanx-js/client', 'pynect'],
+  external,
   format: 'esm',
   outdir: dist,
-  sourcemap: 'external',
   target: 'browser',
 });
 if (!pynectResult.success) {
   for (const log of pynectResult.logs) console.error(log);
   process.exit(1);
 }
-const snapshotResult = await Bun.build({
-  entrypoints: [resolve(root, 'src/snapshot.ts')],
-  format: 'esm',
-  outdir: dist,
-  sourcemap: 'external',
-  target: 'node',
-});
-if (!snapshotResult.success) {
-  for (const log of snapshotResult.logs) console.error(log);
-  process.exit(1);
-}
-const snapshotOutput = await readFile(resolve(dist, 'snapshot.js'), 'utf8');
-// The container workspace is `/workspace`, which can also occur legitimately in
-// catalog URLs. Check the package directory so only an embedded local file path
-// fails the build.
-if (snapshotOutput.includes(root)) {
-  throw new Error('Bundled snapshot contains a machine-local workspace path');
-}
-await Promise.all([
-  copyFile(resolve(root, '../web/catalog.json'), resolve(dist, 'catalog.json')),
-  copyFile(resolve(root, '../web/search-index.json'), resolve(dist, 'search-index.json')),
-]);
 await emitDeclarations();
 await chmod(resolve(dist, 'cli.js'), 0o755);
 
