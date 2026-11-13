@@ -48,6 +48,7 @@ try {
 
   console.log(`${dryRun ? "Dry run" : "Release"}: ${currentVersion} -> ${nextVersion} (${tag}).`);
   await updateVersions(versionFiles, nextVersion);
+  await run(["bun", "install"]);
   await run(["bun", "run", "check"]);
 
   const changed = await changedPaths();
