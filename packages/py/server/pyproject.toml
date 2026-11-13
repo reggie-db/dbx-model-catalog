@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dbx-model-catalog-server"
-version = "0.1.9"
+version = "0.2.0"
 description = "Chanx server for dbx-model-catalog"
 requires-python = ">=3.12"
 dependencies = [

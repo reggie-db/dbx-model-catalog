@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dbx-model-catalog-sync"
-version = "0.1.9"
+version = "0.2.0"
 description = "Source ingestion and normalization for dbx-model-catalog"
 requires-python = ">=3.12"
 dependencies = [
